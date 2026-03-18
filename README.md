@@ -153,3 +153,4 @@ If this saved you time, consider giving it a star. It helps others find it.
 # RestorApp
 Sistema Integral de Gestión para Restaurantes - Arquitectura SOA &amp; Edge Computing
 >>>>>>> f93579f10ec32152256d04ad931ca6a815d51a85
+### Estado de Seguridad: Protecciones de GitHub Activadas
