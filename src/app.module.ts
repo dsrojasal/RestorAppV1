@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { TasksModule } from './tasks/tasks.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { MesasModule } from './mesas/mesas.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import configuration from './config';
@@ -30,6 +31,7 @@ import configuration from './config';
     AuthModule,
     UsersModule,
     TasksModule,
+    MesasModule,
   ],
   controllers: [AppController],
   providers: [AppService],
