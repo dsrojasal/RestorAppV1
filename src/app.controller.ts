@@ -27,7 +27,7 @@ export class AppController {
 
   @Post('/premium-echo')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.premium)
+  @Roles(Role.admin)
   premiumEcho(@Body() body: Record<string, unknown>) {
     return body;
   }
