@@ -1,7 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from 'src/custom.decorator';
-import { Role } from 'src/users/enums/role.enum';
+import { Role } from 'src/common/enums/role.enum';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -13,12 +13,10 @@ export class RolesGuard implements CanActivate {
       return true;
     }
     const { user } = context.switchToHttp().getRequest();
-    if (!user) {
+    if (!user || !user.rol) {
       return false;
     }
 
-    // Supports both scalar role (current) and array roles (future)
-    const userRoles = Array.isArray(user.roles) ? user.roles : [user.roles];
-    return requiredRoles.some((role) => userRoles.includes(role));
+    return requiredRoles.some((role) => user.rol.nombre === role);
   }
 }

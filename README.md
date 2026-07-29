@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-# Prime NestJS
+# RestorApp
 
 **Stop wiring up auth, databases, and configs from scratch. Start building your product.**
 
@@ -148,9 +147,4 @@ If this saved you time, consider giving it a star. It helps others find it.
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=josephgoksu/prime-nestjs&type=Timeline)](https://star-history.com/#josephgoksu/prime-nestjs&Timeline)
-=======
-# RestorApp
-Sistema Integral de Gestión para Restaurantes - Arquitectura SOA &amp; Edge Computing
->>>>>>> f93579f10ec32152256d04ad931ca6a815d51a85
-### Estado de Seguridad: Protecciones de GitHub Activadas
+Sistema Integral de Gestión para Restaurantes

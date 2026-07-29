@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { UsersModule } from 'src/users/users.module';
+import { UsuariosModule } from 'src/usuarios/usuarios.module';
+import { RolModule } from 'src/rol/rol.module';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategy/jwt.strategy';
 import { AuthController } from './auth.controller';
@@ -21,7 +22,8 @@ import { LoggerModule } from 'src/logger/logger.module';
       }),
       inject: [ConfigService],
     }),
-    UsersModule,
+    RolModule,
+    UsuariosModule,
   ],
   providers: [AuthService, JwtStrategy],
   exports: [AuthService, JwtModule, PassportModule],

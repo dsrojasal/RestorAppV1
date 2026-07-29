@@ -1,51 +1,52 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { compareSync, hashSync } from 'bcryptjs';
-import { UsersDTO } from 'src/users/dto/create-user.dto';
+import { compareSync } from 'bcryptjs';
+import { CreateUsuarioDto } from 'src/usuarios/dto/create-usuario.dto';
 import { LoginDTO } from './dto/login.dto';
 import { LoggerService } from 'src/logger/logger.service';
-import { UsersService } from 'src/users/users.service';
+import { UsuariosService } from 'src/usuarios/usuarios.service';
+import { RolService } from 'src/rol/rol.service';
+import { Role } from 'src/common/enums/role.enum';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly logger: LoggerService,
     private jwtService: JwtService,
-    private userservice: UsersService,
+    private usuariosService: UsuariosService,
+    private rolService: RolService,
   ) {}
 
   async login(dto: LoginDTO): Promise<{ email: string; access_token: string }> {
-    const userDetails = await this.userservice.findOne(dto.email);
-    if (!userDetails) {
+    const user = await this.usuariosService.findOne(dto.email);
+    if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isValid = compareSync(dto.password, userDetails.password);
+    const isValid = compareSync(dto.password, user.password);
     if (!isValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (!userDetails.isActive) {
+    if (!user.isActive) {
       throw new UnauthorizedException('Account is disabled');
     }
 
     return {
       email: dto.email,
       access_token: this.jwtService.sign({
-        sub: userDetails.id,
+        sub: user.id,
         email: dto.email,
       }),
     };
   }
 
-  async register(dto: UsersDTO): Promise<{ msg: string }> {
-    const hashedPassword = hashSync(dto.password, 10);
+  async register(dto: CreateUsuarioDto): Promise<{ msg: string }> {
+    const rol = await this.rolService.findByNombre(Role.MESERO);
+    dto.rolId ??= rol?.id;
 
     try {
-      await this.userservice.create({
-        ...dto,
-        password: hashedPassword,
-      });
+      await this.usuariosService.create(dto);
     } catch (error) {
       const isUniqueViolation =
         (error as Record<string, unknown>)?.code === '23505' || (error instanceof Error && error.message?.includes('duplicate key'));
