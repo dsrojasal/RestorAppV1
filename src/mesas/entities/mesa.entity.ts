@@ -4,6 +4,7 @@ export enum MesaEstado {
   LIBRE = 'libre',
   OCUPADA = 'ocupada',
   RESERVADA = 'reservada',
+  MANTENIMIENTO = 'mantenimiento',
 }
 
 @Entity()
@@ -17,13 +18,9 @@ export class Mesa {
   @Column()
   capacidad: number;
 
-  @Column({
-    type: 'enum',
-    enum: MesaEstado,
-    default: MesaEstado.LIBRE,
-  })
+  @Column({ type: 'enum', enum: MesaEstado, default: MesaEstado.LIBRE })
   estado: MesaEstado;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, length: 200 })
   descripcion: string;
 }

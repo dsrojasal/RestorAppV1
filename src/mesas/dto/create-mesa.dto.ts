@@ -1,14 +1,14 @@
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, IsOptional, IsEnum, Min } from 'class-validator';
 import { MesaEstado } from '../entities/mesa.entity';
 
 export class CreateMesaDto {
   @IsNotEmpty()
-  @IsInt()
+  @IsNumber()
   @Min(1)
   numero: number;
 
   @IsNotEmpty()
-  @IsInt()
+  @IsNumber()
   @Min(1)
   capacidad: number;
 
@@ -18,6 +18,5 @@ export class CreateMesaDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(255)
   descripcion?: string;
 }
