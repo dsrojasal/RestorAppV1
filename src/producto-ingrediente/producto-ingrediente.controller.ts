@@ -1,0 +1,39 @@
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { ProductoIngredienteService } from './producto-ingrediente.service';
+import { CreateProductoIngredienteDto } from './dto/create-producto-ingrediente.dto';
+import { UpdateProductoIngredienteDto } from './dto/update-producto-ingrediente.dto';
+
+@Controller('producto-ingrediente')
+export class ProductoIngredienteController {
+  constructor(private readonly service: ProductoIngredienteService) {}
+
+  @Post()
+  create(@Body() dto: CreateProductoIngredienteDto) {
+    return this.service.create(dto);
+  }
+
+  @Get()
+  findAll() {
+    return this.service.findAll();
+  }
+
+  @Get('por-producto/:productoId')
+  findByProducto(@Param('productoId', ParseIntPipe) productoId: number) {
+    return this.service.findByProducto(productoId);
+  }
+
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.service.findOne(id);
+  }
+
+  @Patch(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductoIngredienteDto) {
+    return this.service.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.service.remove(id);
+  }
+}
