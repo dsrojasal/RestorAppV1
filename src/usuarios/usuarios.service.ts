@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { hashSync } from 'bcryptjs';
 import { Usuario } from './entities/usuario.entity';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
@@ -35,18 +36,27 @@ export class UsuariosService {
     });
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: number, currentUserId?: number): Promise<void> {
+    if (id === currentUserId) {
+      throw new BadRequestException('No puedes eliminar tu propia cuenta');
+    }
     await this.usuariosRepository.delete(id);
   }
 
   async update(id: number, dto: UpdateUsuarioDto): Promise<Usuario> {
     const usuario = await this.findById(id);
     if (!usuario) throw new NotFoundException(`Usuario #${id} no encontrado`);
+    if (dto.password) {
+      dto.password = hashSync(dto.password, 10);
+    }
     Object.assign(usuario, dto);
     return this.usuariosRepository.save(usuario);
   }
 
-  async toggleActive(id: number): Promise<Usuario> {
+  async toggleActive(id: number, currentUserId?: number): Promise<Usuario> {
+    if (id === currentUserId) {
+      throw new BadRequestException('No puedes desactivar tu propia cuenta');
+    }
     const usuario = await this.findById(id);
     if (!usuario) throw new NotFoundException(`Usuario #${id} no encontrado`);
     usuario.isActive = !usuario.isActive;
