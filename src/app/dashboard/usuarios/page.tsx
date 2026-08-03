@@ -49,9 +49,26 @@ export default function UsuariosPage() {
     return '';
   }
 
+  function authHeaders(): HeadersInit {
+    const cookies = document.cookie.split(';');
+    for (const c of cookies) {
+      const [name, value] = c.trim().split('=');
+      if (name === 'token' && value) {
+        return { Authorization: `Bearer ${decodeURIComponent(value)}`, 'Content-Type': 'application/json' };
+      }
+    }
+    return { 'Content-Type': 'application/json' };
+  }
+
   async function cargarUsuarios() {
     try {
-      const res = await fetch('/api/backend/usuarios');
+      const res = await fetch('/api/backend/usuarios', { headers: authHeaders() });
+      if (res.status === 401) {
+        document.cookie = 'token=; Max-Age=0; Path=/; SameSite=lax';
+        document.cookie = 'user=; Max-Age=0; Path=/; SameSite=lax';
+        window.location.href = '/login';
+        return;
+      }
       if (res.ok) {
         const data: Usuario[] = await res.json();
         const email = getCurrentUserEmail().toLowerCase();
@@ -94,7 +111,7 @@ export default function UsuariosPage() {
 
   async function toggleStatus(userId: number) {
     try {
-      await fetch(`/api/backend/usuarios/${userId}/toggle-active`, { method: 'PATCH' });
+      await fetch(`/api/backend/usuarios/${userId}/toggle-active`, { method: 'PATCH', headers: authHeaders() });
       cargarUsuarios();
     } catch {}
     setMenuOpen(null);
@@ -103,7 +120,7 @@ export default function UsuariosPage() {
   async function eliminarUsuario(userId: number, name: string) {
     if (!confirm(`Eliminar a ${name}?`)) return;
     try {
-      await fetch(`/api/backend/usuarios/${userId}`, { method: 'DELETE' });
+      await fetch(`/api/backend/usuarios/${userId}`, { method: 'DELETE', headers: authHeaders() });
       cargarUsuarios();
     } catch {}
     setMenuOpen(null);
@@ -129,7 +146,7 @@ export default function UsuariosPage() {
         if (contrasena) Object.assign(body, { password: contrasena });
         const res = await fetch(`/api/backend/usuarios/${editId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders(),
           body: JSON.stringify(body),
         });
         if (!res.ok) { const err = await res.json(); alert(err.message || 'Error al actualizar'); return; }
@@ -138,7 +155,7 @@ export default function UsuariosPage() {
         Object.assign(body, { password: contrasena });
         const res = await fetch('/api/backend/usuarios', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders(),
           body: JSON.stringify(body),
         });
         if (!res.ok) { const err = await res.json(); alert(err.message || 'Error al crear'); return; }
@@ -235,23 +252,32 @@ export default function UsuariosPage() {
         })}
       </div>
 
-      {menuOpen !== null && (
-        <>
-          <div className="context-backdrop" onClick={() => setMenuOpen(null)} />
-          <div ref={menuRef} className="context-menu open" style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 1200 }}>
-            <button className="context-item" onClick={() => { const u = users.find(x => x.id === menuOpen); if (u) openEdit(u); }}>
-              <span className="material-symbols-outlined">edit</span> Editar
-            </button>
-            <button className="context-item" onClick={() => toggleStatus(menuOpen)}>
-              <span className="material-symbols-outlined">sync_alt</span> Cambiar estado
-            </button>
-            <div className="context-divider" />
-            <button className="context-item danger" onClick={() => { const u = users.find(x => x.id === menuOpen); if (u) eliminarUsuario(u.id, u.name); }}>
-              <span className="material-symbols-outlined">delete</span> Eliminar
-            </button>
-          </div>
-        </>
-      )}
+      {menuOpen !== null &&
+        (() => {
+          const menuUser = users.find(x => x.id === menuOpen);
+          const isSelf = menuUser?.email === currentUserEmail;
+          return (
+            <>
+              <div className="context-backdrop" onClick={() => setMenuOpen(null)} />
+              <div ref={menuRef} className="context-menu open" style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 1200 }}>
+                <button className="context-item" onClick={() => { const u = users.find(x => x.id === menuOpen); if (u) openEdit(u); }}>
+                  <span className="material-symbols-outlined">edit</span> Editar
+                </button>
+                {!isSelf && (
+                  <button className="context-item" onClick={() => toggleStatus(menuOpen)}>
+                    <span className="material-symbols-outlined">sync_alt</span> Cambiar estado
+                  </button>
+                )}
+                <div className="context-divider" />
+                {!isSelf && (
+                  <button className="context-item danger" onClick={() => { const u = users.find(x => x.id === menuOpen); if (u) eliminarUsuario(u.id, u.name); }}>
+                    <span className="material-symbols-outlined">delete</span> Eliminar
+                  </button>
+                )}
+              </div>
+            </>
+          );
+        })()}
 
       <button className="fab" title="Agregar nuevo" onClick={openCreate}>
         <span className="material-symbols-outlined">add</span>
