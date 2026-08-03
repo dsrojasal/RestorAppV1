@@ -126,7 +126,7 @@ export default function LoginPage() {
           </form>
 
           <div style={{ marginTop: '40px', paddingTop: '24px', borderTop: '1px solid #e0bfbd', width: '100%', textAlign: 'center' }}>
-            <p style={{ fontSize: '14px', color: '#584140' }}>&copy; 2026 RestorAppCRUB</p>
+            <p style={{ fontSize: '14px', color: '#584140' }}>&copy; 2026 RestorApp</p>
           </div>
         </div>
       </main>
