@@ -1,9 +1,4 @@
 import { NextResponse } from 'next/server';
-import { SignJWT } from 'jose';
-
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'restorapp-dev-secret-change-in-production'
-);
 
 const API_BASE = process.env.API_URL || 'http://localhost:3000';
 
@@ -53,22 +48,13 @@ export async function POST(request: Request) {
       createdAt = userData.createdAt || createdAt;
     }
 
-    const token = await new SignJWT({
-      id: userId,
-      email: data.email,
-      name: userName,
-      rol: userRol,
-      rolId: userRolId,
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('8h')
-      .sign(secret);
+    const token = data.access_token;
 
     const response = NextResponse.json({ success: true });
 
     response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false',
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 8,
@@ -76,7 +62,7 @@ export async function POST(request: Request) {
 
     response.cookies.set('user', JSON.stringify({ name: userName, email: data.email, rol: userRol, createdAt }), {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false',
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 8,
