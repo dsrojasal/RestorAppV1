@@ -1,13 +1,23 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { UsuariosService } from './usuarios.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
+import { RolesGuard } from 'src/auth/strategy/roles.guard';
+import { Roles } from 'src/custom.decorator';
+import { Role } from 'src/common/enums/role.enum';
+
+interface AuthedRequest extends Request {
+  user?: { id: number };
+}
 
 @Controller('usuarios')
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
   create(@Body() dto: CreateUsuarioDto) {
     return this.usuariosService.create(dto);
   }
@@ -28,17 +38,23 @@ export class UsuariosController {
   }
 
   @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUsuarioDto) {
     return this.usuariosService.update(id, dto);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.usuariosService.remove(id);
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  remove(@Param('id', ParseIntPipe) id: number, @Req() req: AuthedRequest) {
+    return this.usuariosService.remove(id, req.user?.id);
   }
 
   @Patch(':id/toggle-active')
-  toggleActive(@Param('id', ParseIntPipe) id: number) {
-    return this.usuariosService.toggleActive(id);
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  toggleActive(@Param('id', ParseIntPipe) id: number, @Req() req: AuthedRequest) {
+    return this.usuariosService.toggleActive(id, req.user?.id);
   }
 }
