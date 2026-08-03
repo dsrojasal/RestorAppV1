@@ -1,0 +1,34 @@
+# Dependencias
+node_modules/
+
+# Compilado / build
+.next/
+dist/
+build/
+out/
+next-env.d.ts
+
+# SECRETOS - nunca subir
+.env
+.env.*
+.env.local
+.env.production
+*.pem
+*.key
+*.crt
+*.p12
+
+# Logs
+*.log
+logs/
+
+# Coverage / tests
+coverage/
+.nyc_output/
+
+# OS / IDE / extras
+.DS_Store
+.vscode/
+.idea/
+.continue/
+tsconfig.eslint.json
