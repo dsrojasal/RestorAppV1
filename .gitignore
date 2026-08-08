@@ -32,3 +32,4 @@ coverage/
 .idea/
 .continue/
 tsconfig.eslint.json
+*.tsbuildinfo

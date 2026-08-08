@@ -29,6 +29,8 @@
     "migration:run": "npm run typeorm migration:run",
     "migration:revert": "npm run typeorm migration:revert",
     "drop:database": "npm run typeorm schema:drop",
+    "seed:carta": "node scripts/seed-carta.js",
+    "seed:usuarios-demo": "node scripts/seed-demo-usuarios.js",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
