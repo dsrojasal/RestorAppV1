@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 
 interface ModalSheetProps {
   isOpen: boolean;
@@ -10,6 +10,16 @@ interface ModalSheetProps {
 }
 
 export default function ModalSheet({ isOpen, onClose, title, children }: ModalSheetProps) {
+  const [openKey, setOpenKey] = useState(0);
+  const prevOpen = useRef(isOpen);
+
+  useEffect(() => {
+    if (isOpen && !prevOpen.current) {
+      setOpenKey((k) => k + 1);
+    }
+    prevOpen.current = isOpen;
+  }, [isOpen]);
+
   return (
     <>
       <div className={`modal-overlay ${isOpen ? 'open' : ''}`} onClick={onClose} />
@@ -21,7 +31,7 @@ export default function ModalSheet({ isOpen, onClose, title, children }: ModalSh
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
-        <div className="modal-body">
+        <div className="modal-body" key={openKey}>
           {children}
         </div>
       </div>

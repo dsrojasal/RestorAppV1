@@ -42,7 +42,7 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 a { text-decoration: none; color: inherit; }
@@ -267,7 +267,7 @@ input, select, textarea { font-family: inherit; }
 .table-wrap td { padding: 12px 16px; border-top: 1px solid var(--border-light); color: var(--text); }
 .table-wrap tr:hover td { background: var(--bg); }
 
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
 .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 16px; text-align: center; }
 .stat-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
 .stat-value { font-size: 32px; font-weight: 800; color: var(--text); line-height: 1; display: flex; align-items: center; justify-content: center; gap: 8px; }
@@ -278,7 +278,8 @@ input, select, textarea { font-family: inherit; }
 .status-dot.online { background: var(--success); box-shadow: 0 0 6px rgba(46, 204, 113, 0.4); }
 .status-dot.offline { background: var(--text-muted); }
 
-.search-wrap { display: flex; gap: 12px; margin-bottom: 20px; }
+.search-wrap { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.search-wrap > * { min-width: 0; }
 .search-input { flex: 1; padding: 14px 16px 14px 46px; background: var(--bg-card); border: 1.5px solid var(--border); border-radius: var(--radius-lg); font-size: 14px; color: var(--text); outline: none; transition: all var(--transition); font-family: inherit; }
 .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-bg); }
 .search-input::placeholder { color: var(--text-muted); }
@@ -328,7 +329,7 @@ input, select, textarea { font-family: inherit; }
 .modal-close { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--text-secondary); transition: all var(--transition); }
 .modal-close:hover { background: var(--bg); color: var(--text); }
 .modal-body { padding: 20px 24px 32px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .form-field { margin-bottom: 16px; }
 .form-field label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
 .form-field input, .form-field select { width: 100%; padding: 12px 14px; background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius); font-size: 14px; color: var(--text); outline: none; transition: all var(--transition); font-family: inherit; }
@@ -464,6 +465,13 @@ input, select, textarea { font-family: inherit; }
 .historial-item-desc { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .historial-item-time { font-size: 13px; color: var(--text-secondary); font-weight: 500; flex-shrink: 0; }
 
+@media (max-width: 640px) {
+  .form-row { grid-template-columns: 1fr; }
+  .search-wrap > div { flex: 1 1 100%; }
+  .search-wrap select { flex: 1 1 100%; }
+  .main-content-inner { padding: 20px 16px; }
+}
+
 @media (min-width: 640px) {
   .modal-sheet { max-width: 640px; width: 100%; left: 50%; right: auto; transform: translateX(-50%) translateY(100%); }
   .modal-sheet.open { transform: translateX(-50%) translateY(0); }
@@ -499,7 +507,7 @@ input, select, textarea { font-family: inherit; }
 }
 
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-.animate-in { animation: fadeInUp 0.4s ease-out forwards; }
+.animate-in { animation: fadeInUp 0.4s ease-out backwards; }
 .animate-in-delay-1 { animation-delay: 0.1s; }
 .animate-in-delay-2 { animation-delay: 0.2s; }
 .animate-in-delay-3 { animation-delay: 0.3s; }
