@@ -19,6 +19,7 @@ import { FacturasModule } from './facturas/facturas.module';
 import { OrdenesCompraModule } from './ordenes-compra/ordenes-compra.module';
 import { DetalleOrdenCompraModule } from './detalle-orden-compra/detalle-orden-compra.module';
 import { ProductoIngredienteModule } from './producto-ingrediente/producto-ingrediente.module';
+import { EntradaStockModule } from './entrada-stock/entrada-stock.module';
 import { ReservasModule } from './reservas/reservas.module';
 import { SeedModule } from './seed/seed.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -60,14 +61,11 @@ import { JwtAuthGuard } from './auth/strategy/jwt-auth.guard';
     OrdenesCompraModule,
     DetalleOrdenCompraModule,
     ProductoIngredienteModule,
+    EntradaStockModule,
     ReservasModule,
     SeedModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-  ],
+  providers: [AppService, { provide: APP_GUARD, useClass: JwtAuthGuard }, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
