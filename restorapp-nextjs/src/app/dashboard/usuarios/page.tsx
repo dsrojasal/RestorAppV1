@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import ModalSheet from '@/components/ModalSheet';
 
-const ROLE_LABELS: Record<number, string> = { 1: 'Administrador', 2: 'Mesero', 3: 'Cocinero', 4: 'Cajero' };
+const ROLE_LABELS: Record<number, string> = { 1: 'Administrador', 2: 'Mesero', 3: 'Chef', 4: 'Cajero' };
 const ROLE_BADGES: Record<number, string> = { 1: 'admin', 2: 'waiter', 3: 'chef', 4: 'cajero' };
 
 interface Usuario {
@@ -23,8 +23,19 @@ export default function UsuariosPage() {
   const [filter, setFilter] = useState('');
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (menuOpen === null || !menuRef.current || !menuAnchor) return;
+    const h = menuRef.current.offsetHeight;
+    let top = menuPos.top;
+    if (top + h > window.innerHeight - 8) {
+      top = Math.max(8, menuAnchor.top - h - 4);
+    }
+    setMenuPos((p) => ({ ...p, top }));
+  }, [menuOpen, menuAnchor]);
 
   useEffect(() => { cargarUsuarios(); }, []);
 
@@ -105,7 +116,8 @@ export default function UsuariosPage() {
   function openMenu(e: React.MouseEvent, userId: number) {
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setMenuPos({ top: rect.bottom + 4, left: Math.min(rect.right - 180, window.innerWidth - 188) });
+    setMenuAnchor(rect);
+    setMenuPos({ top: rect.bottom + 4, left: Math.max(8, Math.min(rect.right - 180, window.innerWidth - 188)) });
     setMenuOpen(menuOpen === userId ? null : userId);
   }
 
@@ -309,7 +321,7 @@ export default function UsuariosPage() {
             <select id="rol" defaultValue={editingUser?.rolId || 2}>
               <option value="1">Administrador</option>
               <option value="2">Mesero</option>
-              <option value="3">Cocinero</option>
+              <option value="3">Chef</option>
               <option value="4">Cajero</option>
             </select>
           </div>

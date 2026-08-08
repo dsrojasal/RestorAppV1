@@ -15,7 +15,7 @@ interface UserData {
   createdAt: string;
 }
 
-const ROLE_MAP: Record<number, string> = { 1: 'Administrador', 2: 'Mesero', 3: 'Cocinero', 4: 'Cajero' };
+const ROLE_MAP: Record<number, string> = { 1: 'Administrador', 2: 'Mesero', 3: 'Chef', 4: 'Cajero' };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
