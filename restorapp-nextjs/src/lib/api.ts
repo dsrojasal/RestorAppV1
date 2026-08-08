@@ -37,3 +37,20 @@ function getCookie(name: string): string | null {
   }
   return null;
 }
+
+export function getAuthToken(): string | null {
+  const raw = getCookie('token');
+  return raw ? decodeURIComponent(raw) : null;
+}
+
+export function getAuthHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+export function handleApiError(res: Response): Promise<{ message?: string }> {
+  return res.json().catch(() => ({ message: res.statusText || 'Error del servidor' }));
+}
