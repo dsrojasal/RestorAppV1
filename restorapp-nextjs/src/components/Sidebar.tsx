@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: 'dashboard', href: '/dashboard', id: 'dashboard' },
+  { label: 'Carta', icon: 'menu_book', href: '/dashboard/carta', id: 'menu' },
   { label: 'Mesas', icon: 'table_restaurant', href: '/dashboard/mesas', id: 'tables' },
   { label: 'Cocina', icon: 'soup_kitchen', href: '/dashboard/cocina', id: 'kitchen' },
   { label: 'Inventario', icon: 'inventory_2', href: '/dashboard/inventario', id: 'inventory' },
@@ -17,7 +18,7 @@ const NAV_ITEMS = [
 ];
 
 const ROLE_ACCESS: Record<number, string[]> = {
-  1: ['dashboard', 'tables', 'kitchen', 'inventory', 'orders', 'users', 'suppliers', 'billing', 'reports', 'settings'],
+  1: ['dashboard', 'menu', 'tables', 'kitchen', 'inventory', 'orders', 'users', 'suppliers', 'billing', 'reports', 'settings'],
   2: ['dashboard', 'tables', 'orders'],
   3: ['kitchen'],
   4: ['dashboard', 'billing', 'reports'],
@@ -37,6 +38,7 @@ export default function Sidebar({ isOpen, onClose, userRoleId = 1, onLogout }: S
     const path = pathname.replace('/dashboard', '') || '/';
     const map: Record<string, string> = {
       '/': 'dashboard',
+      '/carta': 'menu',
       '/mesas': 'tables',
       '/cocina': 'kitchen',
       '/inventario': 'inventory',
