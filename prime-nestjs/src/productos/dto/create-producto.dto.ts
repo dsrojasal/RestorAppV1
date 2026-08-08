@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsNumber, IsEnum, IsOptional, Min } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsEnum, IsOptional, IsBoolean, Min } from 'class-validator';
 import { TipoProducto } from '../entities/producto.entity';
 
 export class CreateProductoDto {
@@ -28,4 +28,8 @@ export class CreateProductoDto {
   @IsNotEmpty()
   @IsNumber()
   categoriaId: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

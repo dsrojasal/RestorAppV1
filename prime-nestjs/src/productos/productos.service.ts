@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Producto } from './entities/producto.entity';
+import { Producto, TipoProducto } from './entities/producto.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 
@@ -9,7 +9,15 @@ import { UpdateProductoDto } from './dto/update-producto.dto';
 export class ProductosService {
   constructor(@InjectRepository(Producto) private readonly repo: Repository<Producto>) {}
 
+  private removerStockPlato(dto: { tipo?: TipoProducto; stock?: number; stockMinimo?: number }): void {
+    if (dto.tipo === TipoProducto.PLATO) {
+      dto.stock = 0;
+      dto.stockMinimo = 0;
+    }
+  }
+
   create(dto: CreateProductoDto): Promise<Producto> {
+    this.removerStockPlato(dto);
     return this.repo.save(this.repo.create(dto));
   }
 
@@ -25,6 +33,7 @@ export class ProductosService {
     const producto = await this.findOne(id);
     if (!producto) throw new NotFoundException(`Producto #${id} no encontrado`);
     Object.assign(producto, dto);
+    this.removerStockPlato(producto);
     return this.repo.save(producto);
   }
 
