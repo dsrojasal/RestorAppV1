@@ -8,12 +8,27 @@ import { Roles } from 'src/custom.decorator';
 import { Role } from 'src/common/enums/role.enum';
 
 interface AuthedRequest extends Request {
-  user?: { id: number };
+  user?: { id: number; name: string; email: string; rolId: number; isActive: boolean; createdAt: Date; rol?: { nombre: string } };
 }
 
 @Controller('usuarios')
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
+
+  @Get('me')
+  me(@Req() req: AuthedRequest) {
+    const user = req.user;
+    if (!user) return null;
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      rolId: user.rolId,
+      rol: user.rol?.nombre || '',
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+    };
+  }
 
   @Post()
   @UseGuards(RolesGuard)

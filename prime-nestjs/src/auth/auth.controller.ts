@@ -1,8 +1,10 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDTO } from './dto/login.dto';
 import { CreateUsuarioDto } from 'src/usuarios/dto/create-usuario.dto';
-import { Public } from 'src/custom.decorator';
+import { Public, Roles } from 'src/custom.decorator';
+import { RolesGuard } from './strategy/roles.guard';
+import { Role } from 'src/common/enums/role.enum';
 
 @Controller('auth')
 export class AuthController {
@@ -15,7 +17,8 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
-  @Public()
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
   @Post('register')
   async register(@Body() registerDto: CreateUsuarioDto) {
     return this.authService.register(registerDto);
