@@ -29,41 +29,14 @@ export async function POST(request: Request) {
 
     const data = await res.json();
 
-    const userRes = await fetch(`${API_BASE}/usuarios/email/${encodeURIComponent(data.email)}`, {
-      headers: { Authorization: `Bearer ${data.access_token}` },
-    });
-
-    let userName = 'Usuario';
-    let userRol = 'Administrador';
-    let userId = 0;
-    let userRolId = 1;
-    let createdAt = new Date().toISOString();
-
-    if (userRes.ok) {
-      const userData = await userRes.json();
-      userName = userData.name || userName;
-      userRol = userData.rol?.nombre || userRol;
-      userId = userData.id || 0;
-      userRolId = userData.rolId || 1;
-      createdAt = userData.createdAt || createdAt;
-    }
-
     const token = data.access_token;
 
     const response = NextResponse.json({ success: true });
 
     response.cookies.set('token', token, {
-      httpOnly: false,
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 8,
-    });
-
-    response.cookies.set('user', JSON.stringify({ name: userName, email: data.email, rol: userRol, createdAt }), {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false',
-      sameSite: 'lax',
+      sameSite: 'strict',
       path: '/',
       maxAge: 60 * 60 * 8,
     });

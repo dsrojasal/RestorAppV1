@@ -22,15 +22,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [user, setUser] = useState<UserData>({ name: 'Usuario', email: '', rol: 'Administrador', rolId: 1, createdAt: '' });
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const cookies = document.cookie.split(';');
-    for (const cookie of cookies) {
-      const [name, value] = cookie.trim().split('=');
-      if (name === 'user' && value) {
-        try {
-          const u = JSON.parse(decodeURIComponent(value));
+    (async () => {
+      try {
+        const res = await fetch('/api/backend/usuarios/me', {
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (res.ok) {
+          const u = await res.json();
           setUser({
             name: u.name || 'Usuario',
             email: u.email || '',
@@ -38,10 +40,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             rolId: u.rolId || 1,
             createdAt: u.createdAt || '',
           });
-        } catch {}
+        } else if (res.status === 401) {
+          await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+          router.replace('/login?expired=1');
+        }
+      } catch {
+        router.replace('/login');
+      } finally {
+        setLoading(false);
       }
-    }
-  }, []);
+    })();
+  }, [router]);
 
   const handleLogout = useCallback(async () => {
     try {
