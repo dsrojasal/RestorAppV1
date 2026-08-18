@@ -1,7 +1,8 @@
-import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Mesa } from 'src/mesas/entities/mesa.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
+import { DetallePedido } from 'src/detalle-pedido/entities/detalle-pedido.entity';
 
 export enum PedidoEstado {
   PENDIENTE = 'pendiente',
@@ -45,6 +46,9 @@ export class Pedido {
 
   @Column({ nullable: true, length: 500 })
   observaciones: string;
+
+  @OneToMany(() => DetallePedido, (detalle) => detalle.pedido)
+  detalles: DetallePedido[];
 
   @CreateDateColumn()
   createdAt: Date;

@@ -2,6 +2,13 @@ import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 't
 import { Pedido } from 'src/pedidos/entities/pedido.entity';
 import { Producto } from 'src/productos/entities/producto.entity';
 
+export enum DetallePedidoEstado {
+  PENDIENTE = 'pendiente',
+  EN_PREPARACION = 'en_preparacion',
+  LISTO = 'listo',
+  CANCELADO = 'cancelado',
+}
+
 @Entity()
 export class DetallePedido {
   @PrimaryGeneratedColumn()
@@ -29,6 +36,9 @@ export class DetallePedido {
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   subtotal: number;
+
+  @Column({ type: 'enum', enum: DetallePedidoEstado, default: DetallePedidoEstado.PENDIENTE })
+  estado: DetallePedidoEstado;
 
   @Column({ nullable: true, length: 300 })
   observacion: string;

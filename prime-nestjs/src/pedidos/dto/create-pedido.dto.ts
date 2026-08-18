@@ -1,5 +1,6 @@
-import { IsNotEmpty, IsNumber, IsString, IsOptional, IsEnum, Min } from 'class-validator';
-import { PedidoEstado } from '../entities/pedido.entity';
+import { IsNotEmpty, IsNumber, IsString, IsOptional, IsArray, ValidateNested, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CreateLineaPedidoDto } from './create-linea-pedido.dto';
 
 export class CreatePedidoDto {
   @IsNotEmpty()
@@ -11,17 +12,10 @@ export class CreatePedidoDto {
   usuarioId: number;
 
   @IsOptional()
-  @IsNumber()
-  tipoPagoId?: number;
-
-  @IsOptional()
-  @IsEnum(PedidoEstado)
-  estado?: PedidoEstado;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  total?: number;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateLineaPedidoDto)
+  lineas?: CreateLineaPedidoDto[];
 
   @IsOptional()
   @IsString()
