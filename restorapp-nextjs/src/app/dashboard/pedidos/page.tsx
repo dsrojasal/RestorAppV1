@@ -21,9 +21,10 @@ interface Pedido {
   detalles: DetallePedido[];
   mesa: { id: number; numero: number; estado: string };
   usuario: { id: number; name: string; email: string };
+  facturas: Factura[];
 }
 
-interface Factura { id: number; pedidoId: number; total: number; estadoPago: string; tipoPago?: { id: number; nombre: string } | null; }
+interface Factura { id: number; pedidoId: number; total: number; estadoPago: string; tipoPago?: { id: number; nombre: string } | null; cobradoPor?: { name: string } | null; cobradoPorRol?: string | null; fechaCobro?: string | null; }
 
 interface Me { id: number; name: string; rolId: number; }
 
@@ -39,6 +40,10 @@ const LINE_STATE: Record<string, { label: string; color: string }> = {
 
 const MESA_COLOR: Record<string, string> = {
   libre: '#2ECC71', ocupada: '#F1C40F', reservada: '#E74C3C', mantenimiento: '#3498DB',
+};
+
+const ESTADO_LABEL: Record<string, string> = {
+  libre: 'Libre', ocupada: 'Ocupada', reservada: 'Reservada', mantenimiento: 'Mantenimiento',
 };
 
 const TIPO_LABEL: Record<string, string> = { plato: 'Platos', bebida: 'Bebidas', postre: 'Postres', otro: 'Otros' };
@@ -58,6 +63,13 @@ function pedidoGeneralStatus(p: Pedido): { label: string; color: string; bg: str
 
 function minsTranscurridos(fecha: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(fecha).getTime()) / 60000));
+}
+
+function estadoCobro(p: Pedido): 'pagado' | 'en_caja' | 'activo' {
+  const facturas = p.facturas || [];
+  if (facturas.some(f => f.estadoPago === 'pagado')) return 'pagado';
+  if (facturas.some(f => f.estadoPago === 'pendiente')) return 'en_caja';
+  return 'activo';
 }
 
 function fmtHora(fecha: string): string {
@@ -94,6 +106,7 @@ export default function PedidosPage() {
 
   const [menuTarget, setMenuTarget] = useState<Pedido | null>(null);
   const [confirmDeletePedido, setConfirmDeletePedido] = useState<Pedido | null>(null);
+  const [showHistorial, setShowHistorial] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -114,7 +127,10 @@ export default function PedidosPage() {
       setProductos(Array.isArray(prodsData) ? prodsData.filter((p: Producto) => p.isActive) : []);
       setPedidos(Array.isArray(pedidosData) ? pedidosData : []);
       if (meData?.id) setMe({ id: meData.id, name: meData.name, rolId: meData.rolId });
-      if (!selectedMesaId && Array.isArray(mesasData) && mesasData.length > 0) setSelectedMesaId(mesasData[0].id);
+      if (!selectedMesaId && Array.isArray(mesasData) && mesasData.length > 0) {
+        const primeraLibre = mesasData.find((m: { estado: string }) => m.estado === 'libre');
+        setSelectedMesaId(primeraLibre ? primeraLibre.id : mesasData[0].id);
+      }
     } catch { /* noop */ } finally { setLoading(false); }
   }, [selectedMesaId]);
 
@@ -131,7 +147,11 @@ export default function PedidosPage() {
   useEffect(() => { if (addOpen || cobrarTarget || editTarget || transferTarget) loadTipoPagos(); }, [addOpen, cobrarTarget, editTarget, transferTarget, loadTipoPagos]);
 
   const selectedMesa = mesas.find(m => m.id === selectedMesaId) || null;
-  const mesaPedidos = pedidos.filter(p => p.mesaId === selectedMesaId && p.estado !== 'cancelado');
+  const mesaPedidos = pedidos.filter(p => p.mesaId === selectedMesaId && p.estado !== 'cancelado')
+    .sort((a, b) => b.id - a.id);
+  const pedidosActivos = mesaPedidos.filter(p => estadoCobro(p) !== 'pagado');
+  const pedidosPagados = mesaPedidos.filter(p => estadoCobro(p) === 'pagado');
+  const mesaDisponible = selectedMesa ? selectedMesa.estado === 'libre' : false;
   const canCreate = !!me && [1, 2, 4].includes(me.rolId);
   const canChangeState = !!me && [1, 2, 3, 4].includes(me.rolId);
   const filteredProductos = productos.filter(p => {
@@ -260,17 +280,25 @@ export default function PedidosPage() {
         <>
           <div className="animate-in animate-in-delay-1" style={{ marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
             <div style={{ display: 'flex', gap: 8, width: 'max-content' }}>
-              {mesas.map(m => (
-                <button key={m.id} onClick={() => setSelectedMesaId(m.id)} className="mesa-chip"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 'var(--radius-lg)',
-                    border: `1.5px solid ${selectedMesaId === m.id ? 'var(--primary)' : 'var(--border)'}`,
-                    background: selectedMesaId === m.id ? 'rgba(46,204,113,0.1)' : 'var(--bg-card)',
-                    cursor: 'pointer', fontWeight: 600, fontSize: 14, color: 'var(--text)',
-                    transition: 'all var(--transition)', whiteSpace: 'nowrap' }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: MESA_COLOR[m.estado] || '#95A5A6', flexShrink: 0 }} />
-                  Mesa {m.numero}
-                </button>
-              ))}
+              {mesas.map(m => {
+                const disponible = m.estado === 'libre';
+                const bloqueada = m.estado === 'reservada' || m.estado === 'mantenimiento';
+                return (
+                  <button key={m.id} onClick={() => { setSelectedMesaId(m.id); setShowHistorial(false); }} className="mesa-chip"
+                    title={disponible ? `Mesa ${m.numero}` : bloqueada ? `Mesa ${m.numero} (${ESTADO_LABEL[m.estado] || m.estado}) — sin pedidos` : `Mesa ${m.numero} (Ocupada)`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 'var(--radius-lg)',
+                      border: `1.5px solid ${selectedMesaId === m.id ? 'var(--primary)' : 'var(--border)'}`,
+                      background: selectedMesaId === m.id ? 'rgba(46,204,113,0.1)' : 'var(--bg-card)',
+                      cursor: 'pointer', fontWeight: 600, fontSize: 14, color: 'var(--text)',
+                      opacity: bloqueada ? 0.55 : 1,
+                      transition: 'all var(--transition)', whiteSpace: 'nowrap' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: MESA_COLOR[m.estado] || '#95A5A6', flexShrink: 0 }} />
+                    Mesa {m.numero}
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{ESTADO_LABEL[m.estado] || m.estado}</span>
+                    {bloqueada && <span className="material-symbols-outlined" style={{ fontSize: 13, color: 'var(--text-muted)' }}>lock</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -278,23 +306,41 @@ export default function PedidosPage() {
             <div className="card-data animate-in" style={{ textAlign: 'center', padding: '60px 24px' }}>
               <p style={{ color: 'var(--text-muted)' }}>Selecciona una mesa para ver sus pedidos.</p>
             </div>
-          ) : mesaPedidos.length === 0 ? (
+          ) : pedidosActivos.length === 0 ? (
             <div className="card-data animate-in animate-in-delay-2" style={{ textAlign: 'center', padding: '60px 24px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 56, color: 'var(--text-muted)', marginBottom: 12 }}>receipt_long</span>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Mesa {selectedMesa.numero} sin pedido</h3>
-              <p style={{ color: 'var(--text-muted)', maxWidth: 380, margin: '0 auto', marginBottom: 20 }}>
-                {canCreate ? 'Crea el primer pedido para empezar a registrar ítems.' : 'No hay pedidos en esta mesa.'}
-              </p>
-              {canCreate && (
-                <button className="btn-primary" onClick={() => { setCart({}); setSearch(''); setTipoFilter('todos'); setAddTarget({ type: 'create', mesaId: selectedMesaId! }); setAddOpen(true); }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span> Crear Pedido
-                </button>
+              <span className="material-symbols-outlined" style={{ fontSize: 56, color: mesaDisponible ? 'var(--text-muted)' : '#E74C3C', marginBottom: 12 }}>
+                {mesaDisponible ? 'receipt_long' : 'lock'}
+              </span>
+              {mesaDisponible ? (
+                <>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>Mesa {selectedMesa.numero} sin pedido</h3>
+                  <p style={{ color: 'var(--text-muted)', maxWidth: 380, margin: '0 auto', marginBottom: 20 }}>
+                    {canCreate ? 'Crea el primer pedido para empezar a registrar ítems.' : 'No hay pedidos en esta mesa.'}
+                  </p>
+                  {canCreate && (
+                    <button className="btn-primary" onClick={() => { setCart({}); setSearch(''); setTipoFilter('todos'); setAddTarget({ type: 'create', mesaId: selectedMesaId! }); setAddOpen(true); }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span> Crear Pedido
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+                    Mesa {selectedMesa.numero} — {ESTADO_LABEL[selectedMesa.estado] || selectedMesa.estado}
+                  </h3>
+                  <p style={{ color: 'var(--text-muted)', maxWidth: 380, margin: '0 auto' }}>
+                    Esta mesa no está disponible para tomar pedidos.
+                  </p>
+                </>
               )}
             </div>
           ) : (
             <div className="animate-in animate-in-delay-2" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {mesaPedidos.map(p => {
+              {pedidosActivos.map(p => {
                 const st = pedidoGeneralStatus(p);
+                const cobro = estadoCobro(p);
+                const enCaja = cobro === 'en_caja';
+                const cobrable = !enCaja && p.detalles.some(d => d.estado === 'entregado' || d.estado === 'listo');
                 return (
                   <div key={p.id} className="card-data" style={{ position: 'relative' }}>
                     {/* Header */}
@@ -312,7 +358,8 @@ export default function PedidosPage() {
                     {menuTarget?.id === p.id && (
                       <div style={{ position: 'absolute', top: 48, right: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 6, zIndex: 20, minWidth: 180, boxShadow: 'var(--shadow-lg)' }}>
                         {canCreate && (
-                          <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text)', borderRadius: 'var(--radius)', textAlign: 'left' }}
+                          <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', border: 'none', background: 'none', cursor: enCaja ? 'not-allowed' : 'pointer', fontSize: 14, color: enCaja ? 'var(--text-muted)' : 'var(--text)', borderRadius: 'var(--radius)', textAlign: 'left' }}
+                            disabled={enCaja}
                             onClick={() => { setTransferTarget(p); setTransferMesaId(null); setMenuTarget(null); }}>
                             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>swap_horiz</span> Transferir mesa
                           </button>
@@ -321,7 +368,8 @@ export default function PedidosPage() {
                           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>call_split</span> Dividir cuenta <span style={{ fontSize: 11, marginLeft: 'auto', opacity: 0.6 }}>Próximamente</span>
                         </button>
                         {canCreate && (
-                          <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#E74C3C', borderRadius: 'var(--radius)', textAlign: 'left' }}
+                          <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', border: 'none', background: 'none', cursor: enCaja ? 'not-allowed' : 'pointer', fontSize: 14, color: enCaja ? 'var(--text-muted)' : '#E74C3C', borderRadius: 'var(--radius)', textAlign: 'left' }}
+                            disabled={enCaja}
                             onClick={() => { setConfirmDeletePedido(p); setMenuTarget(null); }}>
                             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span> Eliminar pedido
                           </button>
@@ -375,27 +423,61 @@ export default function PedidosPage() {
                     </div>
                     <div className="mt-4" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {canCreate && (
-                        <button className="btn-primary" style={{ flex: 1, minWidth: 160, background: '#3498DB' }}
+                        <button className="btn-primary" style={{ flex: 1, minWidth: 160, background: '#3498DB', opacity: enCaja ? 0.5 : 1 }}
+                          disabled={enCaja}
                           onClick={() => { setCart({}); setSearch(''); setTipoFilter('todos'); setAddTarget({ type: 'add', pedidoId: p.id }); setAddOpen(true); }}>
                           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span> Agregar ítem
                         </button>
                       )}
-                      {canCreate && (() => {
-                        const cobrable = p.detalles.some(d => d.estado === 'entregado' || d.estado === 'listo');
-                        const bloqueado = !!p.tipoPagoId; // tiene factura PENDIENTE/PAGADA asociada
-                        return (
-                          <button className="btn-primary" style={{ flex: 1, minWidth: 160, opacity: cobrable && !bloqueado ? 1 : 0.5 }}
-                            disabled={!cobrable || bloqueado || busy}
-                            onClick={() => { setCobrarTarget(p); setCobrarModo(null); setSelectedTipoPago(null); }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>payments</span> Cobrar / Cerrar mesa
-                          </button>
-                        );
-                      })()}
+                      {canCreate && (
+                        <button className="btn-primary" style={{ flex: 1, minWidth: 160, opacity: cobrable ? 1 : 0.5 }}
+                          disabled={!cobrable || enCaja || busy}
+                          onClick={() => { setCobrarTarget(p); setCobrarModo(null); setSelectedTipoPago(null); }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>payments</span> Cobrar / Cerrar mesa
+                        </button>
+                      )}
                     </div>
-                    {p.tipoPagoId && <p style={{ fontSize: 12, color: '#B45309', background: '#FEF3C7', padding: '6px 10px', borderRadius: 'var(--radius)', marginTop: 8, fontWeight: 600 }}>⏳ En espera de cobro en caja</p>}
+                    {enCaja && <p style={{ fontSize: 12, color: '#B45309', background: '#FEF3C7', padding: '6px 10px', borderRadius: 'var(--radius)', marginTop: 8, fontWeight: 600 }}>⏳ En espera de cobro en caja</p>}
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {selectedMesa && pedidosPagados.length > 0 && (
+            <div className="card-data" style={{ background: 'var(--bg)', border: '1px dashed var(--border)' }}>
+              <button onClick={() => setShowHistorial(h => !h)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: 'none', cursor: 'pointer', padding: '8px 4px', color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>receipt_long</span>
+                Historial — pedidos cobrados ({pedidosPagados.length})
+                <span className="material-symbols-outlined" style={{ fontSize: 18, marginLeft: 'auto', transition: 'transform 0.2s', transform: showHistorial ? 'rotate(90deg)' : 'none' }}>chevron_right</span>
+              </button>
+              {showHistorial && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
+                  {pedidosPagados.map(p => {
+                    const factura = (p.facturas || []).find(f => f.estadoPago === 'pagado');
+                    const metodo = factura?.tipoPago?.nombre
+                      || (p.tipoPagoId === 1 ? 'Efectivo' : p.tipoPagoId === 2 ? 'Tarjeta débito' : p.tipoPagoId === 3 ? 'Tarjeta crédito' : p.tipoPagoId === 4 ? 'Transferencia' : '');
+                    return (
+                      <div key={p.id} style={{ paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                          <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Pedido #{p.id} · Mesa {p.mesa?.numero}</span>
+                          <span style={{ padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: '#D1FAE5', color: '#065F46' }}>Cobrado{metodo ? ` · ${metodo}` : ''}</span>
+                          <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 12 }}>{fmtHora(p.createdAt)}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                            {p.detalles?.map(d => `${d.producto?.nombre} x${d.cantidad}`).join(', ') || `${p.detalles?.length || 0} ítems`}
+                          </span>
+                          <span className="text-xs" style={{ color: 'var(--text-muted)', marginLeft: 4 }}>
+                            {factura?.cobradoPor ? ` · Cobró: ${factura.cobradoPor.name}${factura.cobradoPorRol ? ` (${factura.cobradoPorRol})` : ''}` : ''}
+                          </span>
+                          <span className="text-sm font-bold" style={{ marginLeft: 'auto', color: 'var(--primary)' }}>{fmt(p.total)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </>
