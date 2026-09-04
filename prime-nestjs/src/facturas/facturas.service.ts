@@ -23,7 +23,17 @@ export class FacturasService {
 
   findAll(): Promise<Factura[]> {
     return this.repo.find({
-      relations: ['pedido', 'pedido.mesa', 'pedido.usuario', 'pedido.detalles', 'pedido.detalles.producto', 'tipoPago'],
+      relations: [
+        'pedido',
+        'pedido.mesa',
+        'pedido.usuario',
+        'pedido.detalles',
+        'pedido.detalles.producto',
+        'tipoPago',
+        'creadoPor',
+        'cobradoPor',
+        'anuladoPor',
+      ],
       order: { id: 'DESC' },
     });
   }
@@ -31,7 +41,17 @@ export class FacturasService {
   findOne(id: number): Promise<Factura | null> {
     return this.repo.findOne({
       where: { id },
-      relations: ['pedido', 'pedido.mesa', 'pedido.usuario', 'pedido.detalles', 'pedido.detalles.producto', 'tipoPago'],
+      relations: [
+        'pedido',
+        'pedido.mesa',
+        'pedido.usuario',
+        'pedido.detalles',
+        'pedido.detalles.producto',
+        'tipoPago',
+        'creadoPor',
+        'cobradoPor',
+        'anuladoPor',
+      ],
     });
   }
 
@@ -42,7 +62,7 @@ export class FacturasService {
     return this.repo.save(entity);
   }
 
-  async pagar(id: number, dto: PagarFacturaDto): Promise<Factura> {
+  async pagar(id: number, dto: PagarFacturaDto, cobradoPorId?: number, cobradoPorRol?: string): Promise<Factura> {
     return this.dataSource.transaction(async (manager) => {
       const factura = await manager.findOne(Factura, { where: { id } });
       if (!factura) throw new NotFoundException(`Factura #${id} no encontrada`);
@@ -75,11 +95,14 @@ export class FacturasService {
 
       factura.estadoPago = EstadoPago.PAGADO;
       factura.tipoPagoId = dto.tipoPagoId;
+      factura.cobradoPorId = cobradoPorId ?? null;
+      factura.cobradoPorRol = cobradoPorRol ?? null;
+      factura.fechaCobro = new Date();
       return manager.save(Factura, factura);
     });
   }
 
-  async anular(id: number): Promise<Factura> {
+  async anular(id: number, anuladoPorId?: number, motivoAnulacion?: string): Promise<Factura> {
     return this.dataSource.transaction(async (manager) => {
       const factura = await manager.findOne(Factura, { where: { id } });
       if (!factura) throw new NotFoundException(`Factura #${id} no encontrada`);
@@ -90,6 +113,8 @@ export class FacturasService {
         throw new BadRequestException('Esta factura ya está anulada');
       }
       factura.estadoPago = EstadoPago.ANULADO;
+      factura.anuladoPorId = anuladoPorId ?? null;
+      factura.motivoAnulacion = motivoAnulacion ?? null;
       return manager.save(Factura, factura);
     });
   }

@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, Query, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { PedidosService } from './pedidos.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
@@ -10,6 +11,10 @@ import { RolesGuard } from 'src/auth/strategy/roles.guard';
 import { Roles } from 'src/custom.decorator';
 import { Role } from 'src/common/enums/role.enum';
 import { DetallePedidoEstado } from 'src/detalle-pedido/entities/detalle-pedido.entity';
+
+interface AuthedRequest extends Request {
+  user?: { id: number; rol?: { nombre: string } };
+}
 
 @Controller('pedidos')
 export class PedidosController {
@@ -67,8 +72,8 @@ export class PedidosController {
   @Post(':id/cobrar')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  cobrar(@Param('id', ParseIntPipe) id: number, @Body() dto: CobrarPedidoDto) {
-    return this.service.cobrar(id, dto);
+  cobrar(@Param('id', ParseIntPipe) id: number, @Body() dto: CobrarPedidoDto, @Req() req: AuthedRequest) {
+    return this.service.cobrar(id, dto, req.user?.id, req.user?.rol?.nombre);
   }
 
   @Patch(':id/transferir')

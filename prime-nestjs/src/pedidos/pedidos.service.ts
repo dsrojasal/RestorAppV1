@@ -126,7 +126,7 @@ export class PedidosService {
     });
   }
 
-  async cobrar(pedidoId: number, dto: CobrarPedidoDto): Promise<{ factura: Factura; pedido: Pedido }> {
+  async cobrar(pedidoId: number, dto: CobrarPedidoDto, userId?: number, userRol?: string): Promise<{ factura: Factura; pedido: Pedido }> {
     return this.dataSource.transaction(async (manager) => {
       const pedido = await manager.findOne(Pedido, { where: { id: pedidoId } });
       if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
@@ -164,6 +164,10 @@ export class PedidosService {
         if (factura) {
           factura.estadoPago = EstadoPago.PAGADO;
           factura.tipoPagoId = dto.tipoPagoId;
+          factura.creadoPorId = userId ?? factura.creadoPorId;
+          factura.cobradoPorId = userId ?? null;
+          factura.cobradoPorRol = userRol ?? null;
+          factura.fechaCobro = new Date();
           factura = await manager.save(Factura, factura);
         } else {
           factura = await manager.save(
@@ -173,6 +177,10 @@ export class PedidosService {
               total: Number(pedido.total),
               estadoPago: EstadoPago.PAGADO,
               tipoPagoId: dto.tipoPagoId,
+              creadoPorId: userId ?? null,
+              cobradoPorId: userId ?? null,
+              cobradoPorRol: userRol ?? null,
+              fechaCobro: new Date(),
             }),
           );
         }
@@ -186,6 +194,7 @@ export class PedidosService {
               pedidoId,
               total: Number(pedido.total),
               estadoPago: EstadoPago.PENDIENTE,
+              creadoPorId: userId ?? null,
             }),
           );
         }
@@ -237,7 +246,7 @@ export class PedidosService {
   findAll(mesaId?: number): Promise<Pedido[]> {
     return this.repo.find({
       where: mesaId ? { mesaId } : {},
-      relations: ['mesa', 'usuario', 'detalles', 'detalles.producto'],
+      relations: ['mesa', 'usuario', 'detalles', 'detalles.producto', 'facturas', 'facturas.creadoPor', 'facturas.cobradoPor', 'facturas.anuladoPor'],
       order: { id: 'DESC' },
     });
   }
@@ -245,7 +254,7 @@ export class PedidosService {
   findOne(id: number): Promise<Pedido | null> {
     return this.repo.findOne({
       where: { id },
-      relations: ['mesa', 'usuario', 'detalles', 'detalles.producto'],
+      relations: ['mesa', 'usuario', 'detalles', 'detalles.producto', 'facturas', 'facturas.creadoPor', 'facturas.cobradoPor', 'facturas.anuladoPor'],
     });
   }
 
@@ -272,6 +281,9 @@ export class PedidosService {
       const factura = await manager.findOne(Factura, { where: { pedidoId: id } });
       if (factura && factura.estadoPago !== EstadoPago.ANULADO) {
         throw new BadRequestException('El pedido tiene una factura asociada; debe anularse primero para poder eliminarlo');
+      }
+      if (factura) {
+        await manager.delete(Factura, { pedidoId: id });
       }
       await manager.delete(DetallePedido, { pedidoId: id });
       await manager.delete(Pedido, id);
@@ -334,7 +346,7 @@ export class PedidosService {
   private async findOneWithManager(manager: EntityManager, pedidoId: number): Promise<Pedido> {
     return manager.findOne(Pedido, {
       where: { id: pedidoId },
-      relations: ['mesa', 'usuario', 'detalles', 'detalles.producto'],
+      relations: ['mesa', 'usuario', 'detalles', 'detalles.producto', 'facturas', 'facturas.creadoPor', 'facturas.cobradoPor', 'facturas.anuladoPor'],
     }) as Promise<Pedido>;
   }
 }

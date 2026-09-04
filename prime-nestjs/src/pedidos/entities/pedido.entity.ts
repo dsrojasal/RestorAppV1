@@ -3,6 +3,7 @@ import { Mesa } from 'src/mesas/entities/mesa.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
 import { DetallePedido } from 'src/detalle-pedido/entities/detalle-pedido.entity';
+import { Factura } from 'src/facturas/entities/factura.entity';
 
 export enum PedidoEstado {
   PENDIENTE = 'pendiente',
@@ -49,6 +50,9 @@ export class Pedido {
 
   @OneToMany(() => DetallePedido, (detalle) => detalle.pedido)
   detalles: DetallePedido[];
+
+  @OneToMany(() => Factura, (factura) => factura.pedido)
+  facturas: Factura[];
 
   @CreateDateColumn()
   createdAt: Date;

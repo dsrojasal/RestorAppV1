@@ -27,7 +27,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         (req: Request) => {
           const raw = req?.headers?.cookie;
           if (!raw) return null;
-          const match = raw.split(';').map((c) => c.trim()).find((c) => c.startsWith('token='));
+          const match = raw
+            .split(';')
+            .map((c) => c.trim())
+            .find((c) => c.startsWith('token='));
           return match ? decodeURIComponent(match.slice('token='.length)) : null;
         },
       ]),

@@ -49,9 +49,10 @@ describe('PedidosService', () => {
     };
     (service as any).dataSource.transaction.mockImplementation(mockTransaction(manager));
 
-    const result = await service.cobrar(1, { modo: 'caja' });
+    const result = await service.cobrar(1, { modo: 'caja' }, 14, 'Mesero');
     expect(result.factura.estadoPago).toBe(EstadoPago.PENDIENTE);
     expect(result.factura.total).toBe(100);
+    expect(result.factura.creadoPorId).toBe(14);
     expect(result.factura.id).toBeUndefined(); // creada por manager.create/save
     expect(manager.save).toHaveBeenCalledWith(
       DetallePedido,
@@ -112,9 +113,13 @@ describe('PedidosService', () => {
     };
     (service as any).dataSource.transaction.mockImplementation(mockTransaction(manager));
 
-    const result = await service.cobrar(1, { modo: 'propio', tipoPagoId: 3 });
+    const result = await service.cobrar(1, { modo: 'propio', tipoPagoId: 3 }, 14, 'Mesero');
     expect(result.factura.estadoPago).toBe(EstadoPago.PAGADO);
     expect(result.factura.tipoPagoId).toBe(3);
+    expect(result.factura.creadoPorId).toBe(14);
+    expect(result.factura.cobradoPorId).toBe(14);
+    expect(result.factura.cobradoPorRol).toBe('Mesero');
+    expect(result.factura.fechaCobro).toBeInstanceOf(Date);
     expect(manager.update).toHaveBeenCalledWith(Mesa, 2, { estado: MesaEstado.LIBRE });
   });
 

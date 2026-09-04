@@ -50,10 +50,13 @@ describe('FacturasService', () => {
     };
     (service as any).dataSource.transaction.mockImplementation(mockTransaction(manager));
 
-    const result = await service.pagar(1, { tipoPagoId: 3 });
+    const result = await service.pagar(1, { tipoPagoId: 3 }, 21, 'Cajero');
 
     expect(result.estadoPago).toBe(EstadoPago.PAGADO);
     expect(result.tipoPagoId).toBe(3);
+    expect(result.cobradoPorId).toBe(21);
+    expect(result.cobradoPorRol).toBe('Cajero');
+    expect(result.fechaCobro).toBeInstanceOf(Date);
     expect(manager.save).toHaveBeenCalledWith(DetallePedido, expect.objectContaining({ estado: DetallePedidoEstado.ENTREGADO }));
     expect(manager.update).toHaveBeenCalledWith(Pedido, 10, {
       estado: PedidoEstado.ENTREGADO,
@@ -118,8 +121,10 @@ describe('FacturasService', () => {
     };
     (service as any).dataSource.transaction.mockImplementation(mockTransaction(manager));
 
-    const result = await service.anular(1);
+    const result = await service.anular(1, 17, 'Error de mesero');
     expect(result.estadoPago).toBe(EstadoPago.ANULADO);
+    expect(result.anuladoPorId).toBe(17);
+    expect(result.motivoAnulacion).toBe('Error de mesero');
   });
 
   it('anular rechaza una factura ya pagada', async () => {
