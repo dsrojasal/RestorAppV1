@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, UpdateDateColumn } from 'typeorm';
 import { Pedido } from 'src/pedidos/entities/pedido.entity';
 import { Producto } from 'src/productos/entities/producto.entity';
 
@@ -6,6 +6,7 @@ export enum DetallePedidoEstado {
   PENDIENTE = 'pendiente',
   EN_PREPARACION = 'en_preparacion',
   LISTO = 'listo',
+  ENTREGADO = 'entregado',
   CANCELADO = 'cancelado',
 }
 
@@ -42,4 +43,7 @@ export class DetallePedido {
 
   @Column({ nullable: true, length: 300 })
   observacion: string;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
