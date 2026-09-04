@@ -1,5 +1,6 @@
 import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
 import { Pedido } from 'src/pedidos/entities/pedido.entity';
+import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
 
 export enum EstadoPago {
   PENDIENTE = 'pendiente',
@@ -24,6 +25,13 @@ export class Factura {
 
   @Column({ type: 'enum', enum: EstadoPago, default: EstadoPago.PENDIENTE })
   estadoPago: EstadoPago;
+
+  @Column({ nullable: true })
+  tipoPagoId: number;
+
+  @ManyToOne(() => TipoPago)
+  @JoinColumn({ name: 'tipoPagoId' })
+  tipoPago: TipoPago;
 
   @CreateDateColumn()
   fechaEmision: Date;
