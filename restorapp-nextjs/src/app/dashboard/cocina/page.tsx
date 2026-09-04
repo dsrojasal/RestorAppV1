@@ -1,36 +1,125 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { getAuthHeaders } from '@/lib/api';
 
-interface Pedido {
-  id: number; mesa: string; time: string; status: string; waiter: string;
-  note: string; items: { name: string; qty: number; icon: string }[];
+interface Producto {
+  id: number;
+  nombre: string;
+  precio: number;
+  tipo: string;
 }
 
-const PEDIDOS: Pedido[] = [
-  { id: 1, mesa: 'Mesa 7', time: '12:25 pm', status: 'pendiente', waiter: 'Juan P.', note: 'Sin cebolla en una de las hamburguesas.', items: [{ name: 'Hamburguesa Clásica', qty: 2, icon: 'lunch_dining' }, { name: 'Refresco de Cola', qty: 1, icon: 'local_bar' }] },
-  { id: 2, mesa: 'Mesa 12', time: '12:23 pm', status: 'preparacion', waiter: 'Sofía M.', note: 'Carne término medio.', items: [{ name: 'Lomo Saltado', qty: 1, icon: 'lunch_dining' }, { name: 'Limonada', qty: 1, icon: 'local_bar' }] },
-  { id: 3, mesa: 'Mesa 5', time: '12:45 pm', status: 'pendiente', waiter: 'Ana G.', note: '', items: [{ name: 'Hamburguesa Clásica', qty: 2, icon: 'lunch_dining' }, { name: 'Papas Fritas', qty: 1, icon: 'set_meal' }, { name: 'Refresco', qty: 2, icon: 'local_bar' }] },
-  { id: 4, mesa: 'Mesa 3', time: '12:21 pm', status: 'listo', waiter: 'Ana G.', note: 'Sin observaciones.', items: [{ name: 'Pizza Margarita', qty: 1, icon: 'lunch_dining' }, { name: 'Ensalada César', qty: 1, icon: 'set_meal' }] },
-  { id: 5, mesa: 'Mesa 8', time: '12:35 pm', status: 'listo', waiter: 'Carlos P.', note: 'Pizza bien cocida.', items: [{ name: 'Pizza Margarita', qty: 1, icon: 'lunch_dining' }, { name: 'Refresco de Cola', qty: 2, icon: 'local_bar' }] },
-  { id: 6, mesa: 'Terraza 1', time: '12:30 pm', status: 'preparacion', waiter: 'Lucía T.', note: '', items: [{ name: 'Tacos al Pastor', qty: 3, icon: 'lunch_dining' }, { name: 'Agua Fresca', qty: 1, icon: 'local_bar' }] },
-];
+interface DetallePedido {
+  id: number;
+  productoId: number;
+  cantidad: number;
+  precioUnitario: number;
+  subtotal: number;
+  estado: 'pendiente' | 'en_preparacion' | 'listo' | 'cancelado';
+  observacion: string | null;
+  producto: Producto;
+}
 
-const HISTORIAL = [
-  { id: 101, mesa: 'Mesa 5', items: '2x Hamburguesa Clásica, 1x Ensalada César', time: '13:45' },
-  { id: 102, mesa: 'Para llevar', items: '1x Pizza Margarita, 2x Refresco', time: '13:21' },
-  { id: 103, mesa: 'Mesa 2', items: '1x Sopa de Tomate, 1x Pasta Carbonara', time: '12:55' },
-  { id: 104, mesa: 'Terraza 1', items: '3x Tacos al Pastor, 1x Agua Fresca', time: '12:10' },
-  { id: 105, mesa: 'Mesa 8', items: '1x Pizza Margarita, 2x Refresco', time: '11:48' },
-];
+interface Pedido {
+  id: number;
+  mesaId: number;
+  usuarioId: number;
+  estado: string;
+  total: number;
+  observaciones: string | null;
+  createdAt: string;
+  detalles: DetallePedido[];
+  mesa: { id: number; numero: number; estado: string };
+  usuario: { id: number; name: string; email: string };
+}
+
+function tiempoTranscurrido(fecha: string): string {
+  const diff = Date.now() - new Date(fecha).getTime();
+  const mins = Math.max(0, Math.floor(diff / 60000));
+  if (mins < 1) return 'Ahora';
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const minsResto = mins % 60;
+  return `${hrs}h ${minsResto}m`;
+}
+
+function pedidoEstado(d: Pedido): 'pendiente' | 'preparacion' | 'listo' | 'cancelado' {
+  if (d.detalles.some(l => l.estado === 'pendiente')) return 'pendiente';
+  if (d.detalles.some(l => l.estado === 'en_preparacion')) return 'preparacion';
+  if (d.detalles.every(l => l.estado === 'listo' || l.estado === 'cancelado')) return 'listo';
+  return 'cancelado';
+}
 
 export default function CocinaPage() {
-  const [currentFilter, setCurrentFilter] = useState('todos');
-  const [detailId, setDetailId] = useState<number | null>(null);
+  const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentFilter, setCurrentFilter] = useState<string>('todos');
+  const [detailPedido, setDetailPedido] = useState<Pedido | null>(null);
   const [historialOpen, setHistorialOpen] = useState(false);
 
-  const filtered = currentFilter === 'todos' ? PEDIDOS : PEDIDOS.filter(p => p.status === currentFilter);
-  const detailPedido = detailId ? PEDIDOS.find(p => p.id === detailId) : null;
+  const fetchPedidos = useCallback(async () => {
+    try {
+      const headers = getAuthHeaders();
+      const res = await fetch('/api/backend/pedidos', { headers });
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setPedidos(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      // Silenciar errores de red en polling
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPedidos();
+    const interval = setInterval(fetchPedidos, 10000);
+    return () => clearInterval(interval);
+  }, [fetchPedidos]);
+
+  const pedidosActivos = pedidos.filter(p => {
+    const total = p.detalles.length;
+    if (total === 0) return false;
+    const activos = p.detalles.filter(l => l.estado !== 'cancelado').length;
+    return activos > 0;
+  });
+
+  const filtrados = currentFilter === 'todos'
+    ? pedidosActivos
+    : pedidosActivos.filter(p => pedidoEstado(p) === currentFilter);
+
+  const historial = pedidos.filter(p =>
+    p.detalles.length > 0 && p.detalles.every(l => l.estado === 'listo' || l.estado === 'cancelado')
+  );
+
+  async function cambiarEstado(pedidoId: number, lineaId: number, estado: string) {
+    try {
+      const headers = getAuthHeaders();
+      const res = await fetch(`/api/backend/pedidos/${pedidoId}/lineas/${lineaId}/estado`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ estado }),
+      });
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Error al cambiar estado' }));
+        alert(err.message || 'Error al cambiar estado');
+        return;
+      }
+      await fetchPedidos();
+    } catch {
+      alert('Error de conexión');
+    }
+  }
 
   return (
     <>
@@ -48,7 +137,7 @@ export default function CocinaPage() {
       </div>
 
       <div className="segment-control animate-in animate-in-delay-1">
-        {['todos', 'pendiente', 'preparacion', 'listo'].map(f => (
+        {(['todos', 'pendiente', 'preparacion', 'listo'] as const).map(f => (
           <div
             key={f}
             className={`segment-option ${currentFilter === f ? 'active' : ''}`}
@@ -59,56 +148,111 @@ export default function CocinaPage() {
         ))}
       </div>
 
-      <div className="kitchen-list animate-in animate-in-delay-2">
-        {filtered.length === 0 ? (
-          <div className="kc-empty">
-            <div className="material-symbols-outlined">{currentFilter === 'listo' ? 'check_circle' : 'soup_kitchen'}</div>
-            <p>No hay pedidos {currentFilter === 'pendiente' ? 'pendientes' : currentFilter === 'preparacion' ? 'en preparación' : currentFilter === 'listo' ? 'listos' : 'activos'}.</p>
-          </div>
-        ) : (
-          filtered.map(p => {
-            const badgeClass = p.status;
-            const badgeLabel = p.status === 'pendiente' ? 'Pendiente' : p.status === 'preparacion' ? 'En preparación' : 'Listo';
-            const badgeIcon = p.status === 'pendiente' ? 'hourglass_top' : p.status === 'preparacion' ? 'soup_kitchen' : 'check';
-            const noteHtml = p.note ? `<div class="kc-note"><span class="material-symbols-outlined">edit_note</span>${p.note}</div>` : '';
-            return (
-              <div key={p.id} className={`kc-card ${p.status === 'listo' ? 'listo' : ''}`} onClick={() => setDetailId(p.id)}>
-                <div className="kc-card-header">
-                  <span className="kc-card-mesa-time">{p.mesa} • {p.time}</span>
-                  <span className={`kc-badge ${badgeClass}`}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{badgeIcon}</span>
-                    {badgeLabel}
-                  </span>
-                </div>
-                <div className="kc-divider" />
-                <div className="kc-waiter">Mesero: {p.waiter}</div>
-                <div className="kc-items">
-                  {p.items.map((i, idx) => <div key={idx} className="kc-item">• {i.name} x{i.qty}</div>)}
-                </div>
-                {p.note && (
-                  <div className="kc-note">
-                    <span className="material-symbols-outlined">edit_note</span>{p.note}
-                  </div>
-                )}
-                <div className="kc-btn disabled">
-                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                    {p.status === 'pendiente' ? 'skillet' : p.status === 'preparacion' ? 'check_circle' : 'notifications_active'}
-                  </span>
-                  {p.status === 'pendiente' ? 'Iniciar preparación' : p.status === 'preparacion' ? 'Marcar como listo' : 'Notificado'}
-                </div>
+      {loading ? (
+        <div className="kc-empty animate-in animate-in-delay-2">
+          <div className="material-symbols-outlined">sync</div>
+          <p>Cargando pedidos...</p>
+        </div>
+      ) : (
+        <div className="kitchen-list animate-in animate-in-delay-2">
+          {filtrados.length === 0 ? (
+            <div className="kc-empty">
+              <div className="material-symbols-outlined">
+                {currentFilter === 'listo' ? 'check_circle' : 'soup_kitchen'}
               </div>
-            );
-          })
-        )}
-      </div>
+              <p>
+                {currentFilter === 'pendiente'
+                  ? 'No hay pedidos pendientes.'
+                  : currentFilter === 'preparacion'
+                  ? 'No hay pedidos en preparación.'
+                  : currentFilter === 'listo'
+                  ? 'No hay pedidos listos.'
+                  : 'No hay pedidos activos.'}
+              </p>
+            </div>
+          ) : (
+            filtrados.map(p => {
+              const estadoP = pedidoEstado(p);
+              const badgeLabel = estadoP === 'pendiente' ? 'Pendiente' : estadoP === 'preparacion' ? 'En preparación' : 'Listo';
+              const badgeIcon = estadoP === 'pendiente' ? 'hourglass_top' : estadoP === 'preparacion' ? 'soup_kitchen' : 'check';
+              const observationes = p.detalles.filter(l => l.observacion).map(l => l.observacion).join('; ');
+              return (
+                <div key={p.id} className={`kc-card ${estadoP === 'listo' ? 'listo' : ''}`} onClick={() => setDetailPedido(p)}>
+                  <div className="kc-card-header">
+                    <span className="kc-card-mesa-time">
+                      Mesa {p.mesa?.numero} • {tiempoTranscurrido(p.createdAt)}
+                    </span>
+                    <span className={`kc-badge ${estadoP}`}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{badgeIcon}</span>
+                      {badgeLabel}
+                    </span>
+                  </div>
+                  <div className="kc-divider" />
+                  <div className="kc-waiter">Mesero: {p.usuario?.name}</div>
+                  <div className="kc-items">
+                    {p.detalles.map(l => (
+                      <div key={l.id} className="kc-item">
+                        • {l.producto?.nombre} x{l.cantidad}
+                        {l.estado === 'en_preparacion' && (
+                          <span style={{ marginLeft: 6, fontSize: 11, color: '#3498DB', fontWeight: 700 }}>[preparando]</span>
+                        )}
+                        {l.estado === 'listo' && (
+                          <span style={{ marginLeft: 6, fontSize: 11, color: '#2ECC71', fontWeight: 700 }}>[listo]</span>
+                        )}
+                        {l.estado === 'cancelado' && (
+                          <span style={{ marginLeft: 6, fontSize: 11, color: '#E74C3C', fontWeight: 700 }}>[cancelado]</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {observationes && (
+                    <div className="kc-note">
+                      <span className="material-symbols-outlined">edit_note</span>{observationes}
+                    </div>
+                  )}
+                  {p.detalles.map(l => {
+                    if (l.estado === 'pendiente') {
+                      return (
+                        <div
+                          key={`btn-${l.id}`}
+                          className="kc-btn"
+                          style={{ background: '#FEF3C7', color: '#B45309', cursor: 'pointer' }}
+                          onClick={(e) => { e.stopPropagation(); cambiarEstado(p.id, l.id, 'en_preparacion'); }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>skillet</span>
+                          Iniciar: {l.producto?.nombre} x{l.cantidad}
+                        </div>
+                      );
+                    }
+                    if (l.estado === 'en_preparacion') {
+                      return (
+                        <div
+                          key={`btn-${l.id}`}
+                          className="kc-btn"
+                          style={{ background: '#DBEAFE', color: '#1D4ED8', cursor: 'pointer' }}
+                          onClick={(e) => { e.stopPropagation(); cambiarEstado(p.id, l.id, 'listo'); }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>
+                          Listo: {l.producto?.nombre} x{l.cantidad}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
 
       {/* Detail bottom sheet */}
-      <div className={`modal-overlay ${detailPedido ? 'open' : ''}`} onClick={() => setDetailId(null)} />
+      <div className={`modal-overlay ${detailPedido ? 'open' : ''}`} onClick={() => setDetailPedido(null)} />
       <div className={`modal-sheet ${detailPedido ? 'open' : ''}`}>
         <div className="modal-handle" />
         <div className="modal-header">
           <h2>Detalle del Pedido</h2>
-          <button className="modal-close" onClick={() => setDetailId(null)}>
+          <button className="modal-close" onClick={() => setDetailPedido(null)}>
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
@@ -118,30 +262,40 @@ export default function CocinaPage() {
               <div className="detail-info-grid">
                 <div className="detail-info-item">
                   <div className="detail-info-label"># de mesa</div>
-                  <div className="detail-info-value">{detailPedido.mesa}</div>
+                  <div className="detail-info-value">Mesa {detailPedido.mesa?.numero}</div>
                 </div>
                 <div className="detail-info-item">
                   <div className="detail-info-label">Tiempo del pedido</div>
-                  <div className="detail-info-value">Hace {detailPedido.time}</div>
+                  <div className="detail-info-value">Hace {tiempoTranscurrido(detailPedido.createdAt)}</div>
                 </div>
               </div>
               <h4 className="text-base font-bold mb-2 mt-2" style={{ color: 'var(--text)' }}>Productos y cantidades</h4>
               <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius)', padding: '0 12px', marginBottom: 16 }}>
-                {detailPedido.items.map((i, idx) => (
-                  <div key={idx} className="detail-product-row">
-                    <div className="detail-product-icon">
-                      <span className="material-symbols-outlined">{i.icon}</span>
+                {detailPedido.detalles.map(l => {
+                  const icon = l.producto?.tipo === 'plato' ? 'lunch_dining' : l.producto?.tipo === 'bebida' ? 'local_bar' : 'set_meal';
+                  const stColor = l.estado === 'pendiente' ? '#F39C12' : l.estado === 'en_preparacion' ? '#3498DB' : l.estado === 'listo' ? '#2ECC71' : '#E74C3C';
+                  const stLabel = l.estado === 'pendiente' ? 'Pendiente' : l.estado === 'en_preparacion' ? 'En preparación' : l.estado === 'listo' ? 'Listo' : 'Cancelado';
+                  return (
+                    <div key={l.id} className="detail-product-row">
+                      <div className="detail-product-icon">
+                        <span className="material-symbols-outlined">{icon}</span>
+                      </div>
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{l.producto?.nombre}</span>
+                      <span style={{ fontSize: 11, color: stColor, fontWeight: 700 }}>{stLabel}</span>
+                      <span className="detail-product-qty">x{l.cantidad}</span>
                     </div>
-                    <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{i.name}</span>
-                    <span className="detail-product-qty">x{i.qty}</span>
+                  );
+                })}
+              </div>
+              {detailPedido.observaciones && (
+                <>
+                  <h4 className="text-base font-bold mb-2" style={{ color: 'var(--text)' }}>Observaciones del mesero</h4>
+                  <div className="detail-note-box">
+                    <span className="material-symbols-outlined">sticky_note_2</span>
+                    <span>{detailPedido.observaciones}</span>
                   </div>
-                ))}
-              </div>
-              <h4 className="text-base font-bold mb-2" style={{ color: 'var(--text)' }}>Observaciones del mesero</h4>
-              <div className="detail-note-box">
-                <span className="material-symbols-outlined">sticky_note_2</span>
-                <span>{detailPedido.note || 'Sin observaciones.'}</span>
-              </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -164,29 +318,35 @@ export default function CocinaPage() {
                 <span className="material-symbols-outlined">timer</span>
               </div>
               <div>
-                <div className="historial-stat-label">Tiempo promedio</div>
-                <div className="historial-stat-value">15 min 30 seg</div>
+                <div className="historial-stat-label">Pedidos completados</div>
+                <div className="historial-stat-value">{historial.length}</div>
               </div>
             </div>
           </div>
-          <div className="segment-control" style={{ marginBottom: 12 }}>
-            <div className="segment-option active">Pedidos del día</div>
-            <div className="segment-option">Historial completo</div>
-          </div>
           <h4 className="text-base font-bold mb-2" style={{ color: 'var(--text)' }}>Pedidos del día</h4>
           <div className="historial-list">
-            {HISTORIAL.map(h => (
-              <div key={h.id} className="historial-item">
-                <div className="historial-item-icon">
-                  <span className="material-symbols-outlined">check_circle</span>
+            {historial.length === 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px 0', fontSize: 14 }}>
+                No hay pedidos completados aún.
+              </p>
+            ) : (
+              historial.map(h => (
+                <div key={h.id} className="historial-item">
+                  <div className="historial-item-icon">
+                    <span className="material-symbols-outlined">check_circle</span>
+                  </div>
+                  <div className="historial-item-info">
+                    <div className="historial-item-title">Pedido #{h.id} - Mesa {h.mesa?.numero}</div>
+                    <div className="historial-item-desc">
+                      {h.detalles.map(l => `${l.cantidad}x ${l.producto?.nombre}`).join(', ')}
+                    </div>
+                  </div>
+                  <div className="historial-item-time">
+                    {h.createdAt ? new Date(h.createdAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}
+                  </div>
                 </div>
-                <div className="historial-item-info">
-                  <div className="historial-item-title">Pedido #{h.id} - {h.mesa}</div>
-                  <div className="historial-item-desc">{h.items}</div>
-                </div>
-                <div className="historial-item-time">{h.time}</div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
