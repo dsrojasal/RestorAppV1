@@ -6,10 +6,12 @@ import { getAuthHeaders } from '@/lib/api';
 
 interface Linea { id: number; cantidad: number; nombre?: string; observacion?: string; producto?: { nombre: string } | null; }
 interface PedidoInFactura { id: number; total: number; mesa?: { numero: number } | null; usuario?: { name: string } | null; detalles?: Linea[] | null; }
-interface Factura { id: number; pedidoId: number; total: number; estadoPago: string; fechaEmision: string; tipoPago?: { id: number; nombre: string } | null; pedido?: PedidoInFactura | null; }
+interface Factura { id: number; pedidoId: number; total: number; estadoPago: string; fechaEmision: string; tipoPago?: { id: number; nombre: string } | null; pedido?: PedidoInFactura | null; creadoPor?: { name: string } | null; cobradoPor?: { name: string } | null; cobradoPorRol?: string | null; fechaCobro?: string | null; anuladoPor?: { name: string } | null; motivoAnulacion?: string | null; }
 interface TipoPago { id: number; nombre: string; }
 
 const fmt = (n: number | string) => '$' + Number(n).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+const minsSince = (ts: string) => Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 60000));
+const fmtTime = (ts: string) => new Date(ts).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   pendiente: { label: 'En espera de cobro', color: '#B45309', bg: '#FEF3C7' },
@@ -20,7 +22,7 @@ const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> =
 export default function FacturacionPage() {
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'pendientes' | 'pagadas'>('pendientes');
+  const [tab, setTab] = useState<'pendientes' | 'pagadas' | 'anuladas'>('pendientes');
   const [pagarTarget, setPagarTarget] = useState<Factura | null>(null);
   const [selectedTipoPago, setSelectedTipoPago] = useState<number | null>(null);
   const [tipoPagos, setTipoPagos] = useState<TipoPago[]>([]);
@@ -65,11 +67,13 @@ export default function FacturacionPage() {
 
   async function anular(factura: Factura) {
     if (!confirm(`¿Anular la factura #${factura.id}? El pedido volverá a ser editable.`)) return;
-    const result = await api('POST', `/api/backend/facturas/${factura.id}/anular`);
+    const motivo = window.prompt('Motivo de la anulación (opcional):', '');
+    if (motivo === null) return;
+    const result = await api('POST', `/api/backend/facturas/${factura.id}/anular`, motivo.trim() ? { motivo: motivo.trim() } : {});
     if (result) await load();
   }
 
-  const list = tab === 'pendientes' ? pendientes : pagadas;
+  const list = tab === 'pendientes' ? pendientes : tab === 'pagadas' ? pagadas : anuladas;
 
   return (
     <>
@@ -85,6 +89,9 @@ export default function FacturacionPage() {
         <div className={`segment-option ${tab === 'pagadas' ? 'active' : ''}`} onClick={() => setTab('pagadas')}>
           Pagadas ({pagadas.length})
         </div>
+        <div className={`segment-option ${tab === 'anuladas' ? 'active' : ''}`} onClick={() => setTab('anuladas')}>
+          Anuladas ({anuladas.length})
+        </div>
       </div>
 
       {loading ? (
@@ -95,13 +102,13 @@ export default function FacturacionPage() {
       ) : list.length === 0 ? (
         <div className="card-data animate-in animate-in-delay-2" style={{ textAlign: 'center', padding: '60px 24px' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 56, color: 'var(--text-muted)', marginBottom: 12 }}>
-            {tab === 'pendientes' ? 'receipt_long' : 'verified'}
+            {tab === 'pendientes' ? 'receipt_long' : tab === 'pagadas' ? 'verified' : 'block'}
           </span>
           <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
-            {tab === 'pendientes' ? 'Sin pedidos en espera' : 'Sin cobros registrados'}
+            {tab === 'pendientes' ? 'Sin pedidos en espera' : tab === 'pagadas' ? 'Sin cobros registrados' : 'Sin anulaciones'}
           </h3>
           <p style={{ color: 'var(--text-muted)', maxWidth: 400, margin: '0 auto' }}>
-            {tab === 'pendientes' ? 'Cuando un mesero envíe un pedido a caja, aparecerá aquí para que lo cobres.' : 'Los cobros completados aparecerán aquí.'}
+            {tab === 'pendientes' ? 'Cuando un mesero envíe un pedido a caja, aparecerá aquí para que lo cobres.' : tab === 'pagadas' ? 'Los cobros completados aparecerán aquí.' : 'Las facturas anuladas se registran aquí para auditoría.'}
           </p>
         </div>
       ) : (
@@ -121,6 +128,22 @@ export default function FacturacionPage() {
                   Pedido #{f.pedidoId} · Mesa {f.pedido?.mesa?.numero ?? '—'} · Mesero: {f.pedido?.usuario?.name ?? '—'}
                   {f.tipoPago ? ` · ${f.tipoPago.nombre}` : ''}
                 </p>
+                {f.estadoPago === 'pendiente' && (
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#B45309', margin: '0 0 10px' }}>
+                    ⏳ En espera de cobro — lleva {minsSince(f.fechaEmision)} min
+                  </p>
+                )}
+                {f.estadoPago !== 'pendiente' && (
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+                    Enviada por: {f.creadoPor?.name ?? '—'}
+                    {f.estadoPago === 'pagado' && (
+                      <> · Cobrada por: <strong style={{ color: 'var(--text)' }}>{f.cobradoPor?.name ?? '—'}</strong>{f.cobradoPorRol ? ` (${f.cobradoPorRol})` : ''} · {f.fechaCobro ? fmtTime(f.fechaCobro) : ''}</>
+                    )}
+                    {f.estadoPago === 'anulado' && (
+                      <> · Anulada por: {f.anuladoPor?.name ?? '—'}{f.motivoAnulacion ? ` · Motivo: ${f.motivoAnulacion}` : ''}</>
+                    )}
+                  </p>
+                )}
                 <div style={{ marginBottom: 10 }}>
                   {f.pedido?.detalles?.map(d => (
                     <div key={d.id} className="order-item-row" style={{ padding: '4px 0', gap: 8 }}>
@@ -174,10 +197,6 @@ export default function FacturacionPage() {
           </div>
         )}
       </ModalSheet>
-
-      {anuladas.length > 0 && (
-        <p style={{ marginTop: 16, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>{anuladas.length} factura(s) anulada(s) no se muestran.</p>
-      )}
     </>
   );
 }
