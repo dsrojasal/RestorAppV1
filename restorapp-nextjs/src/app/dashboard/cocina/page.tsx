@@ -175,7 +175,6 @@ export default function CocinaPage() {
               const estadoP = pedidoEstado(p);
               const badgeLabel = estadoP === 'pendiente' ? 'Pendiente' : estadoP === 'preparacion' ? 'En preparación' : 'Listo';
               const badgeIcon = estadoP === 'pendiente' ? 'hourglass_top' : estadoP === 'preparacion' ? 'soup_kitchen' : 'check';
-              const observationes = p.detalles.filter(l => l.observacion).map(l => l.observacion).join('; ');
               return (
                 <div key={p.id} className={`kc-card ${estadoP === 'listo' ? 'listo' : ''}`} onClick={() => setDetailPedido(p)}>
                   <div className="kc-card-header">
@@ -202,14 +201,15 @@ export default function CocinaPage() {
                         {l.estado === 'cancelado' && (
                           <span style={{ marginLeft: 6, fontSize: 11, color: '#E74C3C', fontWeight: 700 }}>[cancelado]</span>
                         )}
+                        {l.observacion && (
+                          <div className="kc-item-note">
+                            <span className="material-symbols-outlined">edit_note</span>
+                            {l.observacion}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
-                  {observationes && (
-                    <div className="kc-note">
-                      <span className="material-symbols-outlined">edit_note</span>{observationes}
-                    </div>
-                  )}
                   {p.detalles.map(l => {
                     if (l.estado === 'pendiente') {
                       return (
@@ -280,7 +280,15 @@ export default function CocinaPage() {
                       <div className="detail-product-icon">
                         <span className="material-symbols-outlined">{icon}</span>
                       </div>
-                      <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{l.producto?.nombre}</span>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>{l.producto?.nombre}</span>
+                        {l.observacion && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontStyle: 'italic', color: '#92400e' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>edit_note</span>
+                            {l.observacion}
+                          </span>
+                        )}
+                      </div>
                       <span style={{ fontSize: 11, color: stColor, fontWeight: 700 }}>{stLabel}</span>
                       <span className="detail-product-qty">x{l.cantidad}</span>
                     </div>

@@ -428,11 +428,11 @@ input, select, textarea { font-family: inherit; }
 .kc-waiter { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
 .kc-items { display: flex; flex-direction: column; gap: 2px; }
 .kc-item { font-size: 14px; font-weight: 500; color: var(--text); }
-.kc-note { display: flex; align-items: flex-start; gap: 4px; margin-top: 8px; padding: 8px 10px; background: #fef3c7; border-radius: var(--radius); font-size: 13px; color: #92400e; }
-.kc-note .material-symbols-outlined { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.kc-item-note { display: flex; align-items: flex-start; gap: 4px; padding: 2px 0 2px 14px; font-size: 12px; font-style: italic; color: #92400e; }
+.kc-item-note .material-symbols-outlined { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
 .kc-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px 0; margin-top: 12px; border-radius: var(--radius); font-size: 14px; font-weight: 700; transition: all var(--transition); }
 .kc-btn.disabled { background: var(--bg); color: var(--text-muted); cursor: not-allowed; }
-.kc-card.listo .kc-card-header, .kc-card.listo .kc-waiter, .kc-card.listo .kc-items, .kc-card.listo .kc-note { opacity: 0.6; }
+.kc-card.listo .kc-card-header, .kc-card.listo .kc-waiter, .kc-card.listo .kc-items, .kc-card.listo .kc-item-note { opacity: 0.6; }
 .kc-empty { text-align: center; padding: 60px 24px; color: var(--text-muted); }
 .kc-empty .material-symbols-outlined { font-size: 56px; color: var(--border); margin-bottom: 12px; }
 
