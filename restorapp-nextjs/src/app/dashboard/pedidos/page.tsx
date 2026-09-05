@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import ModalSheet from '@/components/ModalSheet';
+import LiveIndicator from '@/components/LiveIndicator';
+import { useLiveData } from '@/lib/useLiveData';
 import { getAuthHeaders, handleApiError } from '@/lib/api';
 
 interface Mesa { id: number; numero: number; capacidad: number; estado: string; }
@@ -145,7 +147,7 @@ export default function PedidosPage() {
   }, [selectedMesaId]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { const t = setInterval(load, 10000); return () => clearInterval(t); }, [load]);
+  const live = useLiveData(['pedidos.changed', 'mesas.changed'], load);
 
   const loadTipoPagos = useCallback(async () => {
     try {
@@ -311,6 +313,7 @@ export default function PedidosPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <h2 className="page-title" style={{ marginBottom: 0 }}>Pedidos</h2>
           {me && <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500, marginLeft: 8 }}>Atendiendo: {me.name}</span>}
+          <LiveIndicator connected={live} />
         </div>
         <p className="page-subtitle">Registra y gestiona los pedidos de cada mesa en tiempo real.</p>
       </div>

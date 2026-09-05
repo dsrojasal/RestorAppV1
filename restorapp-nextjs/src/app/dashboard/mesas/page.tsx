@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ModalSheet from '@/components/ModalSheet';
 import ContextMenu, { ContextMenuRef } from '@/components/ContextMenu';
+import { useLiveData } from '@/lib/useLiveData';
 import { getAuthHeaders, handleApiError } from '@/lib/api';
 
 interface Mesa {
@@ -53,6 +54,8 @@ export default function MesasPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useLiveData(['mesas.changed'], load, 0);
 
   const total = mesas.length;
   const disponibles = mesas.filter((m) => m.estado === 'libre').length;

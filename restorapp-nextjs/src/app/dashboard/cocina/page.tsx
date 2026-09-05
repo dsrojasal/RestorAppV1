@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import LiveIndicator from '@/components/LiveIndicator';
+import { useLiveData } from '@/lib/useLiveData';
 import { getAuthHeaders } from '@/lib/api';
 
 interface Producto {
@@ -78,11 +80,8 @@ export default function CocinaPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchPedidos();
-    const interval = setInterval(fetchPedidos, 10000);
-    return () => clearInterval(interval);
-  }, [fetchPedidos]);
+  useEffect(() => { fetchPedidos(); }, [fetchPedidos]);
+  const live = useLiveData(['pedidos.changed'], fetchPedidos);
 
   const pedidosActivos = pedidos.filter(p => {
     const total = p.detalles.length;
@@ -131,6 +130,7 @@ export default function CocinaPage() {
 
       <div className="cocina-header-info animate-in animate-in-delay-1">
         <p className="cocina-welcome">Bienvenido, Chef</p>
+        <LiveIndicator connected={live} />
         <button className="btn-historial" onClick={() => setHistorialOpen(true)}>
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>history</span>
           Historial

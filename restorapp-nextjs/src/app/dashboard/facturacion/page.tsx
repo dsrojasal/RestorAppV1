@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import ModalSheet from '@/components/ModalSheet';
+import LiveIndicator from '@/components/LiveIndicator';
+import { useLiveData } from '@/lib/useLiveData';
 import { getAuthHeaders } from '@/lib/api';
 
 interface Linea { id: number; cantidad: number; nombre?: string; observacion?: string; producto?: { nombre: string } | null; }
@@ -43,7 +45,7 @@ export default function FacturacionPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { const t = setInterval(load, 10000); return () => clearInterval(t); }, [load]);
+  const live = useLiveData(['pedidos.changed', 'facturas.changed'], load);
 
   const pendientes = facturas.filter(f => f.estadoPago === 'pendiente');
   const pagadas = facturas.filter(f => f.estadoPago === 'pagado');
@@ -78,7 +80,10 @@ export default function FacturacionPage() {
   return (
     <>
       <div className="animate-in">
-        <h2 className="page-title">Facturación</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h2 className="page-title" style={{ marginBottom: 0 }}>Facturación</h2>
+          <LiveIndicator connected={live} />
+        </div>
         <p className="page-subtitle">Cobra los pedidos enviados por los meseros (caja centralizada).</p>
       </div>
 
