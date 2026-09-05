@@ -8,6 +8,7 @@ import { DetallePedido, DetallePedidoEstado } from 'src/detalle-pedido/entities/
 import { Mesa, MesaEstado } from 'src/mesas/entities/mesa.entity';
 import { Factura, EstadoPago } from 'src/facturas/entities/factura.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
+import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
 
 function mockTransaction(manager: any) {
   return jest.fn((cb: (m: any) => any) => cb(manager));
@@ -26,6 +27,7 @@ describe('PedidosService', () => {
         PedidosService,
         { provide: getRepositoryToken(Pedido), useValue: repo },
         { provide: DataSource, useValue: dataSource },
+        { provide: NotificacionesService, useValue: { crear: jest.fn() } },
       ],
     }).compile();
     service = moduleRef.get(PedidosService);

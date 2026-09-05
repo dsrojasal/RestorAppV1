@@ -14,16 +14,19 @@ import { CreateLineaPedidoDto } from './dto/create-linea-pedido.dto';
 import { UpdateLineaPedidoDto } from './dto/update-linea-pedido.dto';
 import { CobrarPedidoDto } from './dto/cobrar-pedido.dto';
 import { TransferirPedidoDto } from './dto/transferir-pedido.dto';
+import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
+import { TipoNotificacion } from 'src/notificaciones/entities/notificacion.entity';
 
 @Injectable()
 export class PedidosService {
   constructor(
     @InjectRepository(Pedido) private readonly repo: Repository<Pedido>,
     private readonly dataSource: DataSource,
+    private readonly notificaciones?: NotificacionesService,
   ) {}
 
   async create(dto: CreatePedidoDto): Promise<Pedido> {
-    return this.dataSource.transaction(async (manager) => {
+    const pedido = await this.dataSource.transaction(async (manager) => {
       const result = await manager
         .createQueryBuilder()
         .update(Mesa)
@@ -55,6 +58,18 @@ export class PedidosService {
 
       return this.findOneWithManager(manager, saved.id);
     });
+
+    const numeroMesa = (pedido.mesa as Mesa | undefined)?.numero ?? pedido.mesaId;
+    this.notificaciones?.crear({
+      tipo: TipoNotificacion.PEDIDO,
+      mensaje: `Nuevo pedido #${pedido.id} - Mesa ${numeroMesa}`,
+      icono: 'receipt',
+      clase: 'danger',
+      roles: [Role.ADMIN, Role.MESERO, Role.CHEF],
+      creadoPorId: pedido.usuarioId ?? undefined,
+      refId: `pedido:${pedido.id}`,
+    });
+    return pedido;
   }
 
   async agregarLinea(pedidoId: number, dto: CreateLineaPedidoDto, userId?: number, userRol?: string): Promise<Pedido> {
@@ -70,7 +85,7 @@ export class PedidosService {
     });
   }
 
-  async cambiarEstadoLinea(pedidoId: number, lineaId: number, estado: DetallePedidoEstado): Promise<DetallePedido> {
+  async cambiarEstadoLinea(pedidoId: number, lineaId: number, estado: DetallePedidoEstado, userId?: number): Promise<DetallePedido> {
     return this.dataSource.transaction(async (manager) => {
       const linea = await manager.findOne(DetallePedido, { where: { id: lineaId, pedidoId } });
       if (!linea) throw new NotFoundException(`Línea #${lineaId} del pedido #${pedidoId} no encontrada`);
@@ -91,6 +106,23 @@ export class PedidosService {
       linea.estado = estado;
       await manager.save(DetallePedido, linea);
       await this.actualizarEstadoDerivado(manager, pedidoId);
+
+      if (estado === DetallePedidoEstado.LISTO) {
+        const pedido = await manager.findOne(Pedido, { where: { id: pedidoId }, relations: ['mesa'] });
+        const numeroMesa = pedido?.mesa?.numero ?? pedidoId;
+        if (pedido) {
+          this.notificaciones?.crear({
+            tipo: TipoNotificacion.PEDIDO_LISTO,
+            mensaje: `Pedido #${pedidoId} · Mesa ${numeroMesa}: ítems listos para entregar`,
+            icono: 'receipt',
+            clase: 'danger',
+            roles: [Role.ADMIN],
+            usuarioId: pedido.usuarioId ?? undefined,
+            creadoPorId: userId,
+            refId: `pedido:${pedidoId}`,
+          });
+        }
+      }
       return linea;
     });
   }
@@ -139,7 +171,7 @@ export class PedidosService {
   }
 
   async cobrar(pedidoId: number, dto: CobrarPedidoDto, userId?: number, userRol?: string): Promise<{ factura: Factura; pedido: Pedido }> {
-    return this.dataSource.transaction(async (manager) => {
+    const resultado = await this.dataSource.transaction(async (manager) => {
       const pedido = await manager.findOne(Pedido, { where: { id: pedidoId } });
       if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
       this.validarDueño(pedido, userId, userRol, true);
@@ -216,6 +248,17 @@ export class PedidosService {
       const pedidoFinal = await this.findOneWithManager(manager, pedidoId);
       return { factura, pedido: pedidoFinal };
     });
+
+    this.notificaciones?.crear({
+      tipo: TipoNotificacion.FACTURA,
+      mensaje: `Factura #${resultado.factura.id} generada`,
+      icono: 'payments',
+      clase: 'primary',
+      roles: [Role.ADMIN, Role.CAJERO],
+      creadoPorId: userId,
+      refId: `factura:${resultado.factura.id}`,
+    });
+    return resultado;
   }
 
   async transferir(pedidoId: number, dto: TransferirPedidoDto, userId?: number, userRol?: string): Promise<Pedido> {

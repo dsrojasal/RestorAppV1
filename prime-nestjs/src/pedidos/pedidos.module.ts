@@ -9,9 +9,10 @@ import { Mesa } from 'src/mesas/entities/mesa.entity';
 import { Factura } from 'src/facturas/entities/factura.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
+import { NotificacionesModule } from 'src/notificaciones/notificaciones.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Pedido, DetallePedido, Producto, Mesa, Factura, TipoPago, Usuario])],
+  imports: [TypeOrmModule.forFeature([Pedido, DetallePedido, Producto, Mesa, Factura, TipoPago, Usuario]), NotificacionesModule],
   controllers: [PedidosController],
   providers: [PedidosService],
   exports: [PedidosService],

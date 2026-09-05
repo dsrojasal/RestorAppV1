@@ -5,14 +5,31 @@ import { hashSync } from 'bcryptjs';
 import { Usuario } from './entities/usuario.entity';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
+import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
+import { TipoNotificacion } from 'src/notificaciones/entities/notificacion.entity';
+import { Role } from 'src/common/enums/role.enum';
 
 @Injectable()
 export class UsuariosService {
-  constructor(@InjectRepository(Usuario) private readonly usuariosRepository: Repository<Usuario>) {}
+  constructor(
+    @InjectRepository(Usuario) private readonly usuariosRepository: Repository<Usuario>,
+    private readonly notificaciones?: NotificacionesService,
+  ) {}
 
   async create(dto: CreateUsuarioDto): Promise<Usuario> {
     const usuario = this.usuariosRepository.create(dto);
-    return this.usuariosRepository.save(usuario);
+    const saved = await this.usuariosRepository.save(usuario);
+    const conRol = await this.usuariosRepository.findOne({ where: { id: saved.id }, relations: ['rol'] });
+    if (conRol?.rol?.nombre === Role.MESERO) {
+      this.notificaciones?.crear({
+        tipo: TipoNotificacion.MESERO,
+        mensaje: 'Nuevo mesero registrado',
+        icono: 'group',
+        clase: 'primary',
+        roles: [Role.ADMIN],
+      });
+    }
+    return saved;
   }
 
   async findAll(): Promise<Usuario[]> {

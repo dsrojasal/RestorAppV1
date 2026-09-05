@@ -51,8 +51,9 @@ export class PedidosController {
     @Param('id', ParseIntPipe) id: number,
     @Param('lineaId', ParseIntPipe) lineaId: number,
     @Body('estado') estado: DetallePedidoEstado,
+    @Req() req: AuthedRequest,
   ) {
-    return this.service.cambiarEstadoLinea(id, lineaId, estado);
+    return this.service.cambiarEstadoLinea(id, lineaId, estado, req.user?.id);
   }
 
   @Post(':id/lineas/:lineaId/entregar')

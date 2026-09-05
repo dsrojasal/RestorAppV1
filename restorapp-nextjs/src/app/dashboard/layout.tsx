@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar';
 import Topbar from '@/components/Topbar';
 import NotificationPanel from '@/components/NotificationPanel';
 import ProfileCard from '@/components/ProfileCard';
+import { useNotifications } from '@/lib/useNotifications';
 
 interface UserData {
   name: string;
@@ -24,6 +25,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [user, setUser] = useState<UserData>({ name: 'Usuario', email: '', rol: 'Administrador', rolId: 1, createdAt: '' });
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { items, unread, marcarLeida, marcarTodas } = useNotifications();
 
   useEffect(() => {
     (async () => {
@@ -68,8 +70,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onProfileClick={() => setProfileOpen(!profileOpen)}
         userName={user.name}
         userRol={user.rol}
+        notifCount={unread}
       />
-      <NotificationPanel isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
+      <NotificationPanel
+        isOpen={notifOpen}
+        onClose={() => setNotifOpen(false)}
+        items={items}
+        unread={unread}
+        onMarcarLeida={marcarLeida}
+        onMarcarTodas={marcarTodas}
+      />
       <ProfileCard isOpen={profileOpen} onClose={() => setProfileOpen(false)} user={user} onLogout={handleLogout} />
       <main className="main-content">
         <div className="main-content-inner">

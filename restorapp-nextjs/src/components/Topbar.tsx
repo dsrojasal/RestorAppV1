@@ -32,7 +32,9 @@ export default function Topbar({
       <div className="topbar-right">
         <button className="topbar-btn" id="notifBtn" title="Notificaciones" onClick={onNotifClick}>
           <span className="material-symbols-outlined">notifications</span>
-          {notifCount > 0 && <span className="badge" />}
+          {notifCount > 0 && (
+            <span className="badge-count">{notifCount > 99 ? '99+' : notifCount}</span>
+          )}
         </button>
         <button className="topbar-btn" title="Ayuda">
           <span className="material-symbols-outlined">help</span>
