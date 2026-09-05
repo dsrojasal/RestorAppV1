@@ -57,6 +57,7 @@ export default function CocinaPage() {
   const [currentFilter, setCurrentFilter] = useState<string>('todos');
   const [detailPedido, setDetailPedido] = useState<Pedido | null>(null);
   const [historialOpen, setHistorialOpen] = useState(false);
+  const [abiertos, setAbiertos] = useState<Record<number, boolean>>({});
 
   const fetchPedidos = useCallback(async () => {
     try {
@@ -173,6 +174,8 @@ export default function CocinaPage() {
           ) : (
             filtrados.map(p => {
               const estadoP = pedidoEstado(p);
+              const pendientes = p.detalles.filter(l => l.estado === 'pendiente');
+              const preparando = p.detalles.filter(l => l.estado === 'en_preparacion');
               const badgeLabel = estadoP === 'pendiente' ? 'Pendiente' : estadoP === 'preparacion' ? 'En preparación' : 'Listo';
               const badgeIcon = estadoP === 'pendiente' ? 'hourglass_top' : estadoP === 'preparacion' ? 'soup_kitchen' : 'check';
               return (
@@ -210,35 +213,74 @@ export default function CocinaPage() {
                       </div>
                     ))}
                   </div>
-                  {p.detalles.map(l => {
-                    if (l.estado === 'pendiente') {
-                      return (
+                  {(pendientes.length > 0 || preparando.length > 0) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                      {pendientes.length > 0 && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <div
+                            className="kc-btn"
+                            style={{ background: '#FEF3C7', color: '#B45309', cursor: 'pointer', marginTop: 0, flex: 1 }}
+                            onClick={(e) => { e.stopPropagation(); cambiarEstado(p.id, pendientes[0].id, 'en_preparacion'); }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>skillet</span>
+                            Iniciar: {pendientes[0].producto?.nombre} x{pendientes[0].cantidad}
+                          </div>
+                          {pendientes.length > 1 && (
+                            <button
+                              title={abiertos[p.id] ? 'Ocultar ítems' : `Ver ${pendientes.length - 1 + (preparando.length > 1 ? preparando.length - 1 : 0)} ítems más`}
+                              onClick={(e) => { e.stopPropagation(); setAbiertos(prev => ({ ...prev, [p.id]: !prev[p.id] })); }}
+                              style={{ minWidth: 44, padding: '0 12px', borderRadius: 'var(--radius)', border: '1.5px solid #FDE68A', background: '#FFFBEB', color: '#B45309', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 22 }}>{abiertos[p.id] ? 'expand_less' : 'expand_more'}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {abiertos[p.id] && pendientes.slice(1).map(l => (
                         <div
                           key={`btn-${l.id}`}
                           className="kc-btn"
-                          style={{ background: '#FEF3C7', color: '#B45309', cursor: 'pointer' }}
+                          style={{ background: '#FEF3C7', color: '#B45309', cursor: 'pointer', marginTop: 0 }}
                           onClick={(e) => { e.stopPropagation(); cambiarEstado(p.id, l.id, 'en_preparacion'); }}
                         >
                           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>skillet</span>
                           Iniciar: {l.producto?.nombre} x{l.cantidad}
                         </div>
-                      );
-                    }
-                    if (l.estado === 'en_preparacion') {
-                      return (
+                      ))}
+                      {preparando.length > 0 && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <div
+                            className="kc-btn"
+                            style={{ background: '#DBEAFE', color: '#1D4ED8', cursor: 'pointer', marginTop: 0, flex: 1 }}
+                            onClick={(e) => { e.stopPropagation(); cambiarEstado(p.id, preparando[0].id, 'listo'); }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>
+                            Listo: {preparando[0].producto?.nombre} x{preparando[0].cantidad}
+                          </div>
+                          {preparando.length > 1 && (
+                            <button
+                              title={abiertos[p.id] ? 'Ocultar ítems' : 'Ver ítems'}
+                              onClick={(e) => { e.stopPropagation(); setAbiertos(prev => ({ ...prev, [p.id]: !prev[p.id] })); }}
+                              style={{ minWidth: 44, padding: '0 12px', borderRadius: 'var(--radius)', border: '1.5px solid #BFDBFE', background: '#EFF6FF', color: '#1D4ED8', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 22 }}>{abiertos[p.id] ? 'expand_less' : 'expand_more'}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {abiertos[p.id] && preparando.slice(1).map(l => (
                         <div
                           key={`btn-${l.id}`}
                           className="kc-btn"
-                          style={{ background: '#DBEAFE', color: '#1D4ED8', cursor: 'pointer' }}
+                          style={{ background: '#DBEAFE', color: '#1D4ED8', cursor: 'pointer', marginTop: 0 }}
                           onClick={(e) => { e.stopPropagation(); cambiarEstado(p.id, l.id, 'listo'); }}
                         >
                           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>
                           Listo: {l.producto?.nombre} x{l.cantidad}
                         </div>
-                      );
-                    }
-                    return null;
-                  })}
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })
