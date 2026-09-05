@@ -65,7 +65,12 @@ export class PedidosController {
   @Patch(':id/lineas/:lineaId')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  editarLinea(@Param('id', ParseIntPipe) id: number, @Param('lineaId', ParseIntPipe) lineaId: number, @Body() dto: UpdateLineaPedidoDto, @Req() req: AuthedRequest) {
+  editarLinea(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('lineaId', ParseIntPipe) lineaId: number,
+    @Body() dto: UpdateLineaPedidoDto,
+    @Req() req: AuthedRequest,
+  ) {
     return this.service.editarLinea(id, lineaId, dto, req.user?.id, req.user?.rol?.nombre);
   }
 

@@ -34,9 +34,7 @@ export class PedidosService {
       if (!result.affected || result.affected === 0) {
         const mesa = await manager.findOne(Mesa, { where: { id: dto.mesaId } });
         if (!mesa) throw new NotFoundException(`Mesa #${dto.mesaId} no encontrada`);
-        throw new BadRequestException(
-          `La mesa ${mesa.numero} ya está ocupada o no disponible; está siendo atendida por otro mesero`,
-        );
+        throw new BadRequestException(`La mesa ${mesa.numero} ya está ocupada o no disponible; está siendo atendida por otro mesero`);
       }
 
       const pedido = manager.create(Pedido, {

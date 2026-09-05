@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -24,8 +24,11 @@ import { ReservasModule } from './reservas/reservas.module';
 import { SeedModule } from './seed/seed.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import configuration from './config';
 import { JwtAuthGuard } from './auth/strategy/jwt-auth.guard';
+import { RealtimeModule } from './realtime/realtime.module';
+import { RealtimeInterceptor } from './realtime/realtime.interceptor';
 
 @Module({
   imports: [
@@ -46,6 +49,7 @@ import { JwtAuthGuard } from './auth/strategy/jwt-auth.guard';
     }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    EventEmitterModule.forRoot(),
     AuthModule,
     RolModule,
     UsuariosModule,
@@ -64,8 +68,14 @@ import { JwtAuthGuard } from './auth/strategy/jwt-auth.guard';
     EntradaStockModule,
     ReservasModule,
     SeedModule,
+    RealtimeModule,
   ],
   controllers: [AppController],
-  providers: [AppService, { provide: APP_GUARD, useClass: JwtAuthGuard }, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: RealtimeInterceptor },
+  ],
 })
 export class AppModule {}
