@@ -54,9 +54,9 @@ export class Pedido {
   @OneToMany(() => Factura, (factura) => factura.pedido)
   facturas: Factura[];
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 }

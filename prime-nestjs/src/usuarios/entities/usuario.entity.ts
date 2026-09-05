@@ -32,9 +32,9 @@ export class Usuario {
   @JoinColumn({ name: 'rolId' })
   rol: Rol;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 }

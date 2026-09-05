@@ -49,6 +49,6 @@ export class Reserva {
   @Column({ nullable: true, length: 300 })
   observaciones: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 }

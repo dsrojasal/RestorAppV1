@@ -350,7 +350,7 @@ export default function CocinaPage() {
                     </div>
                   </div>
                   <div className="historial-item-time">
-                    {h.createdAt ? new Date(h.createdAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}
+                    {h.createdAt ? new Date(h.createdAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }) : ''}
                   </div>
                 </div>
               ))

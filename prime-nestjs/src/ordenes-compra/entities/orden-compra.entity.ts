@@ -20,7 +20,7 @@ export class OrdenCompra {
   @JoinColumn({ name: 'proveedorId' })
   proveedor: Proveedor;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   fecha: Date;
 
   @Column({ type: 'enum', enum: OCEstado, default: OCEstado.BORRADOR })

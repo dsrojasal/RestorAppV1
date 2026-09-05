@@ -11,7 +11,7 @@ interface TipoPago { id: number; nombre: string; }
 
 const fmt = (n: number | string) => '$' + Number(n).toLocaleString('es-CO', { maximumFractionDigits: 0 });
 const minsSince = (ts: string) => Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 60000));
-const fmtTime = (ts: string) => new Date(ts).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+const fmtTime = (ts: string) => new Date(ts).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' });
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
   pendiente: { label: 'En espera de cobro', color: '#B45309', bg: '#FEF3C7' },
@@ -121,7 +121,7 @@ export default function FacturacionPage() {
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Factura #{f.id}</h3>
                   <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, background: st.bg, color: st.color }}>{st.label}</span>
                   <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 12 }}>
-                    {f.fechaEmision ? new Date(f.fechaEmision).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                    {f.fechaEmision ? new Date(f.fechaEmision).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }) : ''}
                   </span>
                 </div>
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>

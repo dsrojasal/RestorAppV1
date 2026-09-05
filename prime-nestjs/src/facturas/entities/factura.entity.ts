@@ -52,7 +52,7 @@ export class Factura {
   @Column({ type: 'varchar', length: 50, nullable: true })
   cobradoPorRol: string | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   fechaCobro: Date | null;
 
   @Column({ type: 'int', nullable: true })
@@ -65,6 +65,6 @@ export class Factura {
   @Column({ type: 'varchar', length: 300, nullable: true })
   motivoAnulacion: string | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   fechaEmision: Date;
 }

@@ -44,6 +44,6 @@ export class DetallePedido {
   @Column({ nullable: true, length: 300 })
   observacion: string;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 }
