@@ -34,7 +34,7 @@ describe('PedidosService', () => {
   it('cobrar en modo caja crea factura pendiente y deja el pedido entregado', async () => {
     const manager = {
       findOne: jest.fn(async (Entity: any) => {
-        if (Entity === Pedido) return { id: 1, mesaId: 2, total: 100, estado: PedidoEstado.LISTO };
+        if (Entity === Pedido) return { id: 1, mesaId: 2, total: 100, estado: PedidoEstado.LISTO, usuarioId: 14 };
         if (Entity === Factura) return null;
         return null;
       }),
@@ -100,7 +100,7 @@ describe('PedidosService', () => {
   it('cobrar modo propio exige tipo de pago y libera la mesa', async () => {
     const manager = {
       findOne: jest.fn(async (Entity: any) => {
-        if (Entity === Pedido) return { id: 1, mesaId: 2, total: 100, estado: PedidoEstado.ENTREGADO };
+        if (Entity === Pedido) return { id: 1, mesaId: 2, total: 100, estado: PedidoEstado.ENTREGADO, usuarioId: 14 };
         if (Entity === Factura) return null;
         if (Entity === TipoPago) return { id: 3, nombre: 'Tarjeta crédito' };
         return null;

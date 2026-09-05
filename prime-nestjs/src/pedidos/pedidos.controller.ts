@@ -40,8 +40,8 @@ export class PedidosController {
   @Post(':id/lineas')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  agregarLinea(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateLineaPedidoDto) {
-    return this.service.agregarLinea(id, dto);
+  agregarLinea(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateLineaPedidoDto, @Req() req: AuthedRequest) {
+    return this.service.agregarLinea(id, dto, req.user?.id, req.user?.rol?.nombre);
   }
 
   @Patch(':id/lineas/:lineaId/estado')
@@ -58,15 +58,15 @@ export class PedidosController {
   @Post(':id/lineas/:lineaId/entregar')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  entregarLinea(@Param('id', ParseIntPipe) id: number, @Param('lineaId', ParseIntPipe) lineaId: number) {
-    return this.service.entregarLinea(id, lineaId);
+  entregarLinea(@Param('id', ParseIntPipe) id: number, @Param('lineaId', ParseIntPipe) lineaId: number, @Req() req: AuthedRequest) {
+    return this.service.entregarLinea(id, lineaId, req.user?.id, req.user?.rol?.nombre);
   }
 
   @Patch(':id/lineas/:lineaId')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  editarLinea(@Param('id', ParseIntPipe) id: number, @Param('lineaId', ParseIntPipe) lineaId: number, @Body() dto: UpdateLineaPedidoDto) {
-    return this.service.editarLinea(id, lineaId, dto);
+  editarLinea(@Param('id', ParseIntPipe) id: number, @Param('lineaId', ParseIntPipe) lineaId: number, @Body() dto: UpdateLineaPedidoDto, @Req() req: AuthedRequest) {
+    return this.service.editarLinea(id, lineaId, dto, req.user?.id, req.user?.rol?.nombre);
   }
 
   @Post(':id/cobrar')
@@ -79,28 +79,28 @@ export class PedidosController {
   @Patch(':id/transferir')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  transferir(@Param('id', ParseIntPipe) id: number, @Body() dto: TransferirPedidoDto) {
-    return this.service.transferir(id, dto);
+  transferir(@Param('id', ParseIntPipe) id: number, @Body() dto: TransferirPedidoDto, @Req() req: AuthedRequest) {
+    return this.service.transferir(id, dto, req.user?.id, req.user?.rol?.nombre);
   }
 
   @Delete(':id/lineas/:lineaId')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  eliminarLinea(@Param('id', ParseIntPipe) id: number, @Param('lineaId', ParseIntPipe) lineaId: number) {
-    return this.service.eliminarLinea(id, lineaId);
+  eliminarLinea(@Param('id', ParseIntPipe) id: number, @Param('lineaId', ParseIntPipe) lineaId: number, @Req() req: AuthedRequest) {
+    return this.service.eliminarLinea(id, lineaId, req.user?.id, req.user?.rol?.nombre);
   }
 
   @Patch(':id')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePedidoDto) {
-    return this.service.update(id, dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePedidoDto, @Req() req: AuthedRequest) {
+    return this.service.update(id, dto, req.user?.id, req.user?.rol?.nombre);
   }
 
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.remove(id);
+  remove(@Param('id', ParseIntPipe) id: number, @Req() req: AuthedRequest) {
+    return this.service.remove(id, req.user?.id, req.user?.rol?.nombre);
   }
 }

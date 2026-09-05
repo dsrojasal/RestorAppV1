@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, EntityManager } from 'typeorm';
 import { Pedido, PedidoEstado } from './entities/pedido.entity';
@@ -7,6 +7,7 @@ import { Producto } from 'src/productos/entities/producto.entity';
 import { Mesa, MesaEstado } from 'src/mesas/entities/mesa.entity';
 import { Factura, EstadoPago } from 'src/facturas/entities/factura.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
+import { Role } from 'src/common/enums/role.enum';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
 import { CreateLineaPedidoDto } from './dto/create-linea-pedido.dto';
@@ -23,9 +24,20 @@ export class PedidosService {
 
   async create(dto: CreatePedidoDto): Promise<Pedido> {
     return this.dataSource.transaction(async (manager) => {
-      const mesa = await manager.findOne(Mesa, { where: { id: dto.mesaId } });
-      if (!mesa) throw new NotFoundException(`Mesa #${dto.mesaId} no encontrada`);
-      if (mesa.estado !== MesaEstado.LIBRE) throw new BadRequestException(`La mesa ${mesa.numero} no está disponible`);
+      const result = await manager
+        .createQueryBuilder()
+        .update(Mesa)
+        .set({ estado: MesaEstado.OCUPADA })
+        .where('id = :id AND estado = :libre', { id: dto.mesaId, libre: MesaEstado.LIBRE })
+        .execute();
+
+      if (!result.affected || result.affected === 0) {
+        const mesa = await manager.findOne(Mesa, { where: { id: dto.mesaId } });
+        if (!mesa) throw new NotFoundException(`Mesa #${dto.mesaId} no encontrada`);
+        throw new BadRequestException(
+          `La mesa ${mesa.numero} ya está ocupada o no disponible; está siendo atendida por otro mesero`,
+        );
+      }
 
       const pedido = manager.create(Pedido, {
         mesaId: dto.mesaId,
@@ -41,17 +53,17 @@ export class PedidosService {
         await this.agregarLineas(manager, saved.id, lineas);
       }
 
-      await manager.update(Mesa, mesa.id, { estado: MesaEstado.OCUPADA });
       await this.recalcularTotal(manager, saved.id);
 
       return this.findOneWithManager(manager, saved.id);
     });
   }
 
-  async agregarLinea(pedidoId: number, dto: CreateLineaPedidoDto): Promise<Pedido> {
+  async agregarLinea(pedidoId: number, dto: CreateLineaPedidoDto, userId?: number, userRol?: string): Promise<Pedido> {
     return this.dataSource.transaction(async (manager) => {
       const pedido = await manager.findOne(Pedido, { where: { id: pedidoId } });
       if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
+      this.validarDueño(pedido, userId, userRol);
       await this.validarEditable(manager, pedidoId);
       await this.agregarLineas(manager, pedidoId, [dto]);
       await this.recalcularTotal(manager, pedidoId);
@@ -85,10 +97,11 @@ export class PedidosService {
     });
   }
 
-  async entregarLinea(pedidoId: number, lineaId: number): Promise<Pedido> {
+  async entregarLinea(pedidoId: number, lineaId: number, userId?: number, userRol?: string): Promise<Pedido> {
     return this.dataSource.transaction(async (manager) => {
       const pedido = await manager.findOne(Pedido, { where: { id: pedidoId } });
       if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
+      this.validarDueño(pedido, userId, userRol);
       await this.validarEditable(manager, pedidoId);
       const linea = await manager.findOne(DetallePedido, { where: { id: lineaId, pedidoId } });
       if (!linea) throw new NotFoundException(`Línea #${lineaId} del pedido #${pedidoId} no encontrada`);
@@ -102,10 +115,11 @@ export class PedidosService {
     });
   }
 
-  async editarLinea(pedidoId: number, lineaId: number, dto: UpdateLineaPedidoDto): Promise<Pedido> {
+  async editarLinea(pedidoId: number, lineaId: number, dto: UpdateLineaPedidoDto, userId?: number, userRol?: string): Promise<Pedido> {
     return this.dataSource.transaction(async (manager) => {
       const pedido = await manager.findOne(Pedido, { where: { id: pedidoId } });
       if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
+      this.validarDueño(pedido, userId, userRol);
       await this.validarEditable(manager, pedidoId);
       const linea = await manager.findOne(DetallePedido, { where: { id: lineaId, pedidoId } });
       if (!linea) throw new NotFoundException(`Línea #${lineaId} del pedido #${pedidoId} no encontrada`);
@@ -130,6 +144,7 @@ export class PedidosService {
     return this.dataSource.transaction(async (manager) => {
       const pedido = await manager.findOne(Pedido, { where: { id: pedidoId } });
       if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
+      this.validarDueño(pedido, userId, userRol, true);
 
       const lineas = await manager.find(DetallePedido, { where: { pedidoId } });
       const activas = lineas.filter((l) => l.estado !== DetallePedidoEstado.CANCELADO);
@@ -205,10 +220,11 @@ export class PedidosService {
     });
   }
 
-  async transferir(pedidoId: number, dto: TransferirPedidoDto): Promise<Pedido> {
+  async transferir(pedidoId: number, dto: TransferirPedidoDto, userId?: number, userRol?: string): Promise<Pedido> {
     return this.dataSource.transaction(async (manager) => {
       const pedido = await manager.findOne(Pedido, { where: { id: pedidoId } });
       if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
+      this.validarDueño(pedido, userId, userRol);
       if (pedido.estado === PedidoEstado.CANCELADO) {
         throw new BadRequestException('No se puede transferir un pedido cancelado');
       }
@@ -228,8 +244,11 @@ export class PedidosService {
     });
   }
 
-  async eliminarLinea(pedidoId: number, lineaId: number): Promise<Pedido> {
+  async eliminarLinea(pedidoId: number, lineaId: number, userId?: number, userRol?: string): Promise<Pedido> {
     return this.dataSource.transaction(async (manager) => {
+      const pedido = await manager.findOne(Pedido, { where: { id: pedidoId } });
+      if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
+      this.validarDueño(pedido, userId, userRol);
       const linea = await manager.findOne(DetallePedido, { where: { id: lineaId, pedidoId } });
       if (!linea) throw new NotFoundException(`Línea #${lineaId} del pedido #${pedidoId} no encontrada`);
       await this.validarEditable(manager, pedidoId);
@@ -258,9 +277,10 @@ export class PedidosService {
     });
   }
 
-  async update(id: number, dto: UpdatePedidoDto): Promise<Pedido> {
+  async update(id: number, dto: UpdatePedidoDto, userId?: number, userRol?: string): Promise<Pedido> {
     const entity = await this.findOne(id);
     if (!entity) throw new NotFoundException(`Pedido #${id} no encontrado`);
+    this.validarDueño(entity, userId, userRol);
     Object.assign(entity, dto);
     if (dto.lineas && dto.lineas.length > 0) {
       await this.dataSource.transaction(async (manager) => {
@@ -274,9 +294,10 @@ export class PedidosService {
     return this.findOne(id) as Promise<Pedido>;
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: number, userId?: number, userRol?: string): Promise<void> {
     const pedido = await this.findOne(id);
     if (!pedido) throw new NotFoundException(`Pedido #${id} no encontrado`);
+    this.validarDueño(pedido, userId, userRol);
     await this.dataSource.transaction(async (manager) => {
       const factura = await manager.findOne(Factura, { where: { pedidoId: id } });
       if (factura && factura.estadoPago !== EstadoPago.ANULADO) {
@@ -289,6 +310,15 @@ export class PedidosService {
       await manager.delete(Pedido, id);
       await manager.update(Mesa, pedido.mesaId, { estado: MesaEstado.LIBRE });
     });
+  }
+
+  private validarDueño(pedido: Pedido, userId?: number, userRol?: string, permitirCajero = false) {
+    if (!userId) return;
+    if (userRol === Role.ADMIN) return;
+    if (permitirCajero && userRol === Role.CAJERO) return;
+    if (pedido.usuarioId !== userId) {
+      throw new ForbiddenException('Este pedido lo está atendiendo otro mesero; no puedes modificarlo');
+    }
   }
 
   private async validarEditable(manager: EntityManager, pedidoId: number) {
