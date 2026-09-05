@@ -193,6 +193,7 @@ export default function PedidosPage() {
       return linea;
     });
     if (lineas.length === 0) { alert('Agrega al menos un producto'); return; }
+    setAddOpen(false);
     setConfirmTarget({
       type: addTarget.type,
       mesaId: addTarget.type === 'create' ? addTarget.mesaId : undefined,
@@ -623,7 +624,7 @@ export default function PedidosPage() {
       </ModalSheet>
 
       {/* Modal: Confirmar orden */}
-      <ModalSheet isOpen={!!confirmTarget} onClose={() => setConfirmTarget(null)} title={confirmTarget?.type === 'create' ? 'Confirmar orden' : 'Confirmar ítems'}>
+      <ModalSheet isOpen={!!confirmTarget} onClose={() => { setConfirmTarget(null); setAddOpen(true); }} title={confirmTarget?.type === 'create' ? 'Confirmar orden' : 'Confirmar ítems'}>
         {confirmTarget && (
           <div>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 14 }}>
@@ -652,7 +653,7 @@ export default function PedidosPage() {
               <span className="font-bold" style={{ color: 'var(--primary)', fontSize: 16 }}>{fmt(confirmTarget.total)}</span>
             </div>
             <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button className="btn-cancel" onClick={() => setConfirmTarget(null)}>Editar</button>
+              <button className="btn-cancel" onClick={() => { setConfirmTarget(null); setAddOpen(true); }}>Editar</button>
               <button className="btn-primary" disabled={busy} onClick={confirmPedidoFinal}>
                 {busy ? 'Guardando...' : confirmTarget.type === 'create' ? 'Confirmar pedido' : 'Confirmar ítems'}
               </button>
