@@ -73,7 +73,7 @@ function estadoCobro(p: Pedido): 'pagado' | 'en_caja' | 'activo' {
 }
 
 function fmtHora(fecha: string): string {
-  return new Date(fecha).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(fecha).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' });
 }
 
 export default function PedidosPage() {
@@ -89,8 +89,18 @@ export default function PedidosPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [addTarget, setAddTarget] = useState<{ type: 'create'; mesaId: number } | { type: 'add'; pedidoId: number } | null>(null);
   const [cart, setCart] = useState<Record<number, number>>({});
+  const [notas, setNotas] = useState<Record<number, string>>({});
+  const [notaEditing, setNotaEditing] = useState<number | null>(null);
+  const [notaDraft, setNotaDraft] = useState('');
   const [search, setSearch] = useState('');
   const [tipoFilter, setTipoFilter] = useState('todos');
+  const [confirmTarget, setConfirmTarget] = useState<{
+    type: 'create' | 'add';
+    mesaId?: number;
+    pedidoId?: number;
+    lineas: { productoId: number; cantidad: number; observacion?: string }[];
+    total: number;
+  } | null>(null);
 
   const [cobrarTarget, setCobrarTarget] = useState<Pedido | null>(null);
   const [cobrarModo, setCobrarModo] = useState<'caja' | 'propio' | null>(null);
@@ -154,6 +164,7 @@ export default function PedidosPage() {
   const mesaDisponible = selectedMesa ? selectedMesa.estado === 'libre' : false;
   const canCreate = !!me && [1, 2, 4].includes(me.rolId);
   const canChangeState = !!me && [1, 2, 3, 4].includes(me.rolId);
+  const esMio = (p: Pedido) => !!me && (me.rolId === 1 || p.usuarioId === me.id);
   const filteredProductos = productos.filter(p => {
     const q = search.trim().toLowerCase();
     if (q && !p.nombre.toLowerCase().includes(q)) return false;
@@ -174,14 +185,63 @@ export default function PedidosPage() {
 
   async function confirmPedido() {
     if (!addTarget) return;
-    const lineas = Object.entries(cart).map(([productoId, cantidad]) => ({ productoId: Number(productoId), cantidad }));
+    const lineas = Object.entries(cart).map(([productoId, cantidad]) => {
+      const id = Number(productoId);
+      const obs = notas[id]?.trim();
+      const linea: { productoId: number; cantidad: number; observacion?: string } = { productoId: id, cantidad };
+      if (obs) linea.observacion = obs;
+      return linea;
+    });
     if (lineas.length === 0) { alert('Agrega al menos un producto'); return; }
+    setConfirmTarget({
+      type: addTarget.type,
+      mesaId: addTarget.type === 'create' ? addTarget.mesaId : undefined,
+      pedidoId: addTarget.type === 'add' ? addTarget.pedidoId : undefined,
+      lineas,
+      total: cartTotal,
+    });
+  }
+
+  async function confirmPedidoFinal() {
+    if (!confirmTarget) return;
     setBusy(true);
-    const url = addTarget.type === 'create' ? '/api/backend/pedidos' : `/api/backend/pedidos/${addTarget.pedidoId}/lineas`;
-    const body = addTarget.type === 'create' ? { mesaId: addTarget.mesaId, usuarioId: me!.id, lineas } : lineas[0];
-    const result = await api('POST', url, body);
+    let ok = false;
+    if (confirmTarget.type === 'create') {
+      const result = await api('POST', '/api/backend/pedidos', {
+        mesaId: confirmTarget.mesaId,
+        usuarioId: me!.id,
+        lineas: confirmTarget.lineas,
+      });
+      ok = !!result;
+    } else {
+      ok = true;
+      for (const l of confirmTarget.lineas) {
+        const r = await api('POST', `/api/backend/pedidos/${confirmTarget.pedidoId}/lineas`, l);
+        if (r === null) { ok = false; break; }
+      }
+    }
     setBusy(false);
-    if (result) { setAddOpen(false); setAddTarget(null); await load(); }
+    if (ok) {
+      setConfirmTarget(null);
+      setAddOpen(false);
+      setAddTarget(null);
+      setCart({});
+      setNotas({});
+      setNotaEditing(null);
+      await load();
+    }
+  }
+
+  function abrirNota(id: number) {
+    setNotaEditing(id);
+    setNotaDraft(notas[id] || '');
+  }
+
+  function guardarNota(id: number) {
+    const v = notaDraft.trim();
+    if (v) setNotas(prev => ({ ...prev, [id]: v }));
+    else setNotas(prev => { const c = { ...prev }; delete c[id]; return c; });
+    setNotaEditing(null);
   }
 
   async function entregarLinea(pedidoId: number, lineaId: number) {
@@ -288,7 +348,7 @@ export default function PedidosPage() {
                     title={disponible ? `Mesa ${m.numero}` : bloqueada ? `Mesa ${m.numero} (${ESTADO_LABEL[m.estado] || m.estado}) — sin pedidos` : `Mesa ${m.numero} (Ocupada)`}
                     style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 'var(--radius-lg)',
                       border: `1.5px solid ${selectedMesaId === m.id ? 'var(--primary)' : 'var(--border)'}`,
-                      background: selectedMesaId === m.id ? 'rgba(46,204,113,0.1)' : 'var(--bg-card)',
+                      background: selectedMesaId === m.id ? `${MESA_COLOR[m.estado] || '#95A5A6'}1A` : 'var(--bg-card)',
                       cursor: 'pointer', fontWeight: 600, fontSize: 14, color: 'var(--text)',
                       opacity: bloqueada ? 0.55 : 1,
                       transition: 'all var(--transition)', whiteSpace: 'nowrap' }}>
@@ -318,7 +378,7 @@ export default function PedidosPage() {
                     {canCreate ? 'Crea el primer pedido para empezar a registrar ítems.' : 'No hay pedidos en esta mesa.'}
                   </p>
                   {canCreate && (
-                    <button className="btn-primary" onClick={() => { setCart({}); setSearch(''); setTipoFilter('todos'); setAddTarget({ type: 'create', mesaId: selectedMesaId! }); setAddOpen(true); }}>
+                    <button className="btn-primary" onClick={() => { setCart({}); setNotas({}); setNotaEditing(null); setSearch(''); setTipoFilter('todos'); setConfirmTarget(null); setAddTarget({ type: 'create', mesaId: selectedMesaId! }); setAddOpen(true); }}>
                       <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span> Crear Pedido
                     </button>
                   )}
@@ -357,23 +417,23 @@ export default function PedidosPage() {
                     {/* ⋮ Dropdown menu */}
                     {menuTarget?.id === p.id && (
                       <div style={{ position: 'absolute', top: 48, right: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 6, zIndex: 20, minWidth: 180, boxShadow: 'var(--shadow-lg)' }}>
-                        {canCreate && (
-                          <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', border: 'none', background: 'none', cursor: enCaja ? 'not-allowed' : 'pointer', fontSize: 14, color: enCaja ? 'var(--text-muted)' : 'var(--text)', borderRadius: 'var(--radius)', textAlign: 'left' }}
-                            disabled={enCaja}
-                            onClick={() => { setTransferTarget(p); setTransferMesaId(null); setMenuTarget(null); }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>swap_horiz</span> Transferir mesa
-                          </button>
-                        )}
+{canCreate && esMio(p) && (
+                      <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', border: 'none', background: 'none', cursor: enCaja ? 'not-allowed' : 'pointer', fontSize: 14, color: enCaja ? 'var(--text-muted)' : 'var(--text)', borderRadius: 'var(--radius)', textAlign: 'left' }}
+                        disabled={enCaja}
+                        onClick={() => { setTransferTarget(p); setTransferMesaId(null); setMenuTarget(null); }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>swap_horiz</span> Transferir mesa
+                      </button>
+                    )}
                         <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', border: 'none', background: 'none', cursor: 'not-allowed', fontSize: 14, color: 'var(--text-muted)', borderRadius: 'var(--radius)', textAlign: 'left' }} disabled>
                           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>call_split</span> Dividir cuenta <span style={{ fontSize: 11, marginLeft: 'auto', opacity: 0.6 }}>Próximamente</span>
                         </button>
-                        {canCreate && (
-                          <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', border: 'none', background: 'none', cursor: enCaja ? 'not-allowed' : 'pointer', fontSize: 14, color: enCaja ? 'var(--text-muted)' : '#E74C3C', borderRadius: 'var(--radius)', textAlign: 'left' }}
-                            disabled={enCaja}
-                            onClick={() => { setConfirmDeletePedido(p); setMenuTarget(null); }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span> Eliminar pedido
-                          </button>
-                        )}
+{canCreate && esMio(p) && (
+                      <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', border: 'none', background: 'none', cursor: enCaja ? 'not-allowed' : 'pointer', fontSize: 14, color: enCaja ? 'var(--text-muted)' : '#E74C3C', borderRadius: 'var(--radius)', textAlign: 'left' }}
+                        disabled={enCaja}
+                        onClick={() => { setConfirmDeletePedido(p); setMenuTarget(null); }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span> Eliminar pedido
+                      </button>
+                    )}
                       </div>
                     )}
 
@@ -396,17 +456,17 @@ export default function PedidosPage() {
                             <div className="font-semibold">{fmt(d.subtotal)}</div>
                           </div>
                           <div style={{ display: 'flex', gap: 2 }}>
-                            {d.estado === 'listo' && canChangeState && (
+                            {d.estado === 'listo' && canChangeState && esMio(p) && (
                               <button className="user-action" title="Marcar entregado" onClick={() => entregarLinea(p.id, d.id)}>
                                 <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#2ECC71' }}>check_circle</span>
                               </button>
                             )}
-                            {(d.estado === 'pendiente' || d.estado === 'en_preparacion' || d.estado === 'listo') && canCreate && (
+                            {(d.estado === 'pendiente' || d.estado === 'en_preparacion' || d.estado === 'listo') && canCreate && esMio(p) && (
                               <button className="user-action" title="Editar" onClick={() => openEdit(p.id, d)}>
                                 <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#8B5CF6' }}>edit</span>
                               </button>
                             )}
-                            {d.estado === 'pendiente' && canCreate && (
+                            {d.estado === 'pendiente' && canCreate && esMio(p) && (
                               <button className="user-action" title="Eliminar ítem" onClick={() => removeLine(p.id, d.id, d.producto?.nombre)}>
                                 <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E74C3C' }}>delete</span>
                               </button>
@@ -422,19 +482,24 @@ export default function PedidosPage() {
                       <span className="font-bold" style={{ color: 'var(--primary)', fontSize: 16 }}>{fmt(p.total)}</span>
                     </div>
                     <div className="mt-4" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {canCreate && (
+                      {canCreate && esMio(p) && (
                         <button className="btn-primary" style={{ flex: 1, minWidth: 160, background: '#3498DB', opacity: enCaja ? 0.5 : 1 }}
                           disabled={enCaja}
-                          onClick={() => { setCart({}); setSearch(''); setTipoFilter('todos'); setAddTarget({ type: 'add', pedidoId: p.id }); setAddOpen(true); }}>
+                          onClick={() => { setCart({}); setNotas({}); setNotaEditing(null); setSearch(''); setTipoFilter('todos'); setConfirmTarget(null); setAddTarget({ type: 'add', pedidoId: p.id }); setAddOpen(true); }}>
                           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span> Agregar ítem
                         </button>
                       )}
-                      {canCreate && (
+                      {canCreate && (esMio(p) || me?.rolId === 4) && (
                         <button className="btn-primary" style={{ flex: 1, minWidth: 160, opacity: cobrable ? 1 : 0.5 }}
                           disabled={!cobrable || enCaja || busy}
                           onClick={() => { setCobrarTarget(p); setCobrarModo(null); setSelectedTipoPago(null); }}>
                           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>payments</span> Cobrar / Cerrar mesa
                         </button>
+                      )}
+                      {canCreate && !esMio(p) && me?.rolId !== 1 && (
+                        <p style={{ fontSize: 12, color: '#B45309', background: '#FEF3C7', padding: '6px 10px', borderRadius: 'var(--radius)', marginTop: 8, fontWeight: 600 }}>
+                          🔒 Pedido de otro mesero — solo lectura hasta que se cierre.
+                        </p>
                       )}
                     </div>
                     {enCaja && <p style={{ fontSize: 12, color: '#B45309', background: '#FEF3C7', padding: '6px 10px', borderRadius: 'var(--radius)', marginTop: 8, fontWeight: 600 }}>⏳ En espera de cobro en caja</p>}
@@ -504,20 +569,43 @@ export default function PedidosPage() {
           ) : filteredProductos.map(p => {
             const qty = cart[p.id] || 0;
             return (
-              <div key={p.id} className="order-item-row" style={{ padding: '10px 0', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{p.nombre}</div>
-                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{fmt(p.precio)}</div>
-                </div>
-                {qty === 0 ? (
-                  <button className="btn-primary" onClick={() => addQty(p.id, 1)} style={{ padding: '6px 14px', fontSize: 13 }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Agregar
+              <div key={p.id} className="order-item-row" style={{ padding: '10px 0', gap: 10, flexDirection: 'column', alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{p.nombre}</div>
+                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{fmt(p.precio)}</div>
+                    {notas[p.id] && notaEditing !== p.id && (
+                      <div className="text-xs" style={{ color: 'var(--primary)', marginTop: 2, fontWeight: 600 }}>📝 {notas[p.id]}</div>
+                    )}
+                  </div>
+                  <button className="user-action" title={notas[p.id] ? 'Editar nota del producto' : 'Agregar nota al producto'}
+                    onClick={() => { if (qty === 0) addQty(p.id, 1); abrirNota(p.id); }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, color: notas[p.id] ? 'var(--primary)' : 'var(--text-muted)' }}>edit</span>
                   </button>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <button className="user-action" onClick={() => addQty(p.id, -1)}><span className="material-symbols-outlined" style={{ fontSize: 20, color: '#E74C3C' }}>remove</span></button>
-                    <span className="font-bold" style={{ minWidth: 18, textAlign: 'center' }}>{qty}</span>
-                    <button className="user-action" onClick={() => addQty(p.id, 1)}><span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--primary)' }}>add</span></button>
+                  {qty === 0 ? (
+                    <button className="btn-primary" onClick={() => addQty(p.id, 1)} style={{ padding: '6px 14px', fontSize: 13 }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Agregar
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button className="user-action" onClick={() => addQty(p.id, -1)}><span className="material-symbols-outlined" style={{ fontSize: 20, color: '#E74C3C' }}>remove</span></button>
+                      <span className="font-bold" style={{ minWidth: 18, textAlign: 'center' }}>{qty}</span>
+                      <button className="user-action" onClick={() => addQty(p.id, 1)}><span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--primary)' }}>add</span></button>
+                    </div>
+                  )}
+                </div>
+                {notaEditing === p.id && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input autoFocus value={notaDraft} onChange={e => setNotaDraft(e.target.value)}
+                      placeholder="Ej: sin cebolla, término medio..."
+                      onKeyDown={e => { if (e.key === 'Enter') guardarNota(p.id); if (e.key === 'Escape') setNotaEditing(null); }}
+                      style={{ flex: 1, padding: '8px 12px', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13, color: 'var(--text)', outline: 'none' }} />
+                    <button className="user-action" title="Guardar nota" onClick={() => guardarNota(p.id)}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--primary)' }}>check</span>
+                    </button>
+                    <button className="user-action" title="Cancelar" onClick={() => setNotaEditing(null)}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#E74C3C' }}>close</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -532,6 +620,45 @@ export default function PedidosPage() {
           <button className="btn-cancel" onClick={() => setAddOpen(false)}>Cancelar</button>
           <button className="btn-primary" disabled={busy} onClick={confirmPedido}>{busy ? 'Guardando...' : 'Guardar Pedido'}</button>
         </div>
+      </ModalSheet>
+
+      {/* Modal: Confirmar orden */}
+      <ModalSheet isOpen={!!confirmTarget} onClose={() => setConfirmTarget(null)} title={confirmTarget?.type === 'create' ? 'Confirmar orden' : 'Confirmar ítems'}>
+        {confirmTarget && (
+          <div>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 14 }}>
+              {confirmTarget.type === 'create'
+                ? `Mesa ${mesas.find(m => m.id === confirmTarget.mesaId)?.numero ?? confirmTarget.mesaId} · ${confirmTarget.lineas.length} producto${confirmTarget.lineas.length === 1 ? '' : 's'}`
+                : `Pedido #${confirmTarget.pedidoId} · ${confirmTarget.lineas.length} ítem${confirmTarget.lineas.length === 1 ? '' : 's'}`}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {confirmTarget.lineas.map(l => {
+                const p = productos.find(x => x.id === l.productoId);
+                return (
+                  <div key={l.productoId} className="order-item-row" style={{ padding: '8px 0' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
+                        {l.cantidad} × {p?.nombre || `Producto #${l.productoId}`}
+                      </div>
+                      {l.observacion && <div className="text-xs" style={{ color: 'var(--primary)', fontWeight: 600, marginTop: 2 }}>📝 {l.observacion}</div>}
+                    </div>
+                    <span className="text-sm font-bold" style={{ color: 'var(--text)', whiteSpace: 'nowrap' }}>{fmt((p?.precio || 0) * l.cantidad)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="order-total-row" style={{ marginTop: 10 }}>
+              <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Total</span>
+              <span className="font-bold" style={{ color: 'var(--primary)', fontSize: 16 }}>{fmt(confirmTarget.total)}</span>
+            </div>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn-cancel" onClick={() => setConfirmTarget(null)}>Editar</button>
+              <button className="btn-primary" disabled={busy} onClick={confirmPedidoFinal}>
+                {busy ? 'Guardando...' : confirmTarget.type === 'create' ? 'Confirmar pedido' : 'Confirmar ítems'}
+              </button>
+            </div>
+          </div>
+        )}
       </ModalSheet>
 
       {/* Modal: Cobrar */}

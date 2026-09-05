@@ -166,7 +166,7 @@ export default function MesasPage() {
           {mesas.map((m) => {
             const st = STATUS[m.estado] || STATUS.libre;
             return (
-              <div key={m.id} className="table-card" onClick={() => setDetailId(m.id)}>
+              <div key={m.id} className="table-card" onClick={() => setDetailId(m.id)} style={{ background: `${st.dot}12`, borderColor: `${st.dot}55` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div className="status-dot-big" style={{ background: st.dot }} />
                   <button
