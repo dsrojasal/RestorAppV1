@@ -15,6 +15,10 @@ export class CreateIngredienteDto {
   @Min(0)
   stockMinimo?: number;
 
+  @IsOptional()
+  @IsString()
+  stockMinimoUnidad?: string;
+
   @IsNotEmpty()
   @IsString()
   unidad: string;

@@ -1,11 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import Decimal from 'decimal.js';
 import { EntradaStock } from './entities/entrada-stock.entity';
 import { CreateEntradaStockDto } from './dto/create-entrada-stock.dto';
 import { Producto, TipoProducto } from 'src/productos/entities/producto.entity';
 import { Ingrediente } from 'src/ingredientes/entities/ingrediente.entity';
 import { MovimientoInventario, TipoMovimientoInventario } from 'src/recetas/entities/movimiento-inventario.entity';
+import { aDecimal } from 'src/common/unidades';
 
 @Injectable()
 export class EntradaStockService {
@@ -22,6 +24,7 @@ export class EntradaStockService {
     }
 
     return this.dataSource.transaction(async (manager) => {
+      const redondear = (v: Decimal): Decimal => v.toDecimalPlaces(3, Decimal.ROUND_HALF_UP);
       let stockAntes: number;
       let stockDespues: number;
       let productoId: number | null = null;
@@ -36,8 +39,8 @@ export class EntradaStockService {
         if (producto.tipo === TipoProducto.PLATO) {
           throw new BadRequestException('Los platos se preparan y no manejan stock manual; controla su disponibilidad con receta');
         }
-        stockAntes = Number(producto.stock) || 0;
-        stockDespues = stockAntes + dto.cantidad;
+        stockAntes = redondear(aDecimal(producto.stock)).toNumber();
+        stockDespues = redondear(aDecimal(stockAntes).add(dto.cantidad)).toNumber();
         producto.stock = stockDespues;
         await manager.save(producto);
         productoId = producto.id;
@@ -47,8 +50,8 @@ export class EntradaStockService {
           lock: { mode: 'pessimistic_write' },
         });
         if (!ingrediente) throw new NotFoundException(`Ingrediente #${dto.ingredienteId} no encontrado`);
-        stockAntes = Number(ingrediente.stock) || 0;
-        stockDespues = stockAntes + dto.cantidad;
+        stockAntes = redondear(aDecimal(ingrediente.stock)).toNumber();
+        stockDespues = redondear(aDecimal(stockAntes).add(dto.cantidad)).toNumber();
         ingrediente.stock = stockDespues;
         await manager.save(ingrediente);
         ingredienteId = ingrediente.id;
@@ -58,7 +61,7 @@ export class EntradaStockService {
         productoId,
         ingredienteId,
         stockAntes,
-        cantidad: dto.cantidad,
+        cantidad: redondear(aDecimal(dto.cantidad)).toNumber(),
         stockDespues,
         usuarioId,
       });
@@ -66,7 +69,7 @@ export class EntradaStockService {
       await manager.save(
         manager.create(MovimientoInventario, {
           tipo: TipoMovimientoInventario.REABASTECIMIENTO,
-          cantidad: dto.cantidad,
+          cantidad: redondear(aDecimal(dto.cantidad)).toNumber(),
           ingredienteId,
           productoId,
           usuarioId,

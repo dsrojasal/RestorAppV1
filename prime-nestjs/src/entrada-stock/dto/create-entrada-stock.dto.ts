@@ -10,6 +10,6 @@ export class CreateEntradaStockDto {
   ingredienteId?: number;
 
   @IsNumber()
-  @Min(1)
+  @Min(0.001)
   cantidad: number;
 }

@@ -13,6 +13,7 @@ import { Producto, TipoProducto } from 'src/productos/entities/producto.entity';
 import { DetallePedido, DetallePedidoEstado } from 'src/detalle-pedido/entities/detalle-pedido.entity';
 import { Pedido, PedidoEstado } from 'src/pedidos/entities/pedido.entity';
 import { Role } from 'src/common/enums/role.enum';
+import { aDecimal, formatearCantidad } from 'src/common/unidades';
 
 const INVENTORY_CRON = process.env.NOTIF_INVENTORY_CRON || '*/5 * * * *';
 const ABANDONADO_CRON = process.env.NOTIF_ABANDONADO_CRON || '0 */30 * * * *';
@@ -122,13 +123,27 @@ export class NotificacionesService {
     const ingredientes = await this.ingredienteRepo.find();
     const productos = await this.productoRepo.find();
 
-    const items: { refId: string; nombre: string; stock: number; stockMinimo: number; unidad: string }[] = [];
+    const items: { refId: string; nombre: string; stock: number; stockMinimo: number; unidad: string; unidadMinimo: string | null }[] = [];
     for (const i of ingredientes) {
-      items.push({ refId: `i:${i.id}`, nombre: i.nombre, stock: Number(i.stock) || 0, stockMinimo: Number(i.stockMinimo) || 0, unidad: i.unidad });
+      items.push({
+        refId: `i:${i.id}`,
+        nombre: i.nombre,
+        stock: Number(i.stock) || 0,
+        stockMinimo: Number(i.stockMinimo) || 0,
+        unidad: i.unidad,
+        unidadMinimo: i.stockMinimoUnidad ?? null,
+      });
     }
     for (const p of productos) {
       if (p.tipo === TipoProducto.PLATO) continue;
-      items.push({ refId: `p:${p.id}`, nombre: p.nombre, stock: Number(p.stock) || 0, stockMinimo: Number(p.stockMinimo) || 0, unidad: 'uds' });
+      items.push({
+        refId: `p:${p.id}`,
+        nombre: p.nombre,
+        stock: Number(p.stock) || 0,
+        stockMinimo: Number(p.stockMinimo) || 0,
+        unidad: 'und',
+        unidadMinimo: p.stockMinimoUnidad ?? 'und',
+      });
     }
 
     const aNotificar: typeof items = [];
@@ -144,16 +159,24 @@ export class NotificacionesService {
     await this.notificarStockBajo(aNotificar);
   }
 
-  async notificarStockBajo(items: { refId: string; nombre: string; stock: number; unidad: string }[]): Promise<void> {
+  async notificarStockBajo(
+    items: { refId: string; nombre: string; stock: number; stockMinimo: number; unidad: string; unidadMinimo?: string | null }[],
+  ): Promise<void> {
     for (const item of items) {
       const pendientes = await this.repo.count({ where: { tipo: TipoNotificacion.INVENTARIO, refId: item.refId } });
       if (pendientes > 0) continue;
+      const base = item.unidad || 'und';
+      const mensaje =
+        item.stock <= 0
+          ? `Agotado: ${item.nombre} (0 ${base} disponibles)`
+          : `Inventario bajo: ${item.nombre} (quedan ${formatearCantidad(aDecimal(item.stock), base)} · mín ${formatearCantidad(
+              aDecimal(item.stockMinimo),
+              base,
+              item.unidadMinimo,
+            )})`;
       await this.crear({
         tipo: TipoNotificacion.INVENTARIO,
-        mensaje:
-          item.stock <= 0
-            ? `Agotado: ${item.nombre}${item.unidad ? ` (sin ${item.unidad})` : ''}`
-            : `Inventario bajo: ${item.nombre} (${item.stock}${item.unidad} restantes)`,
+        mensaje,
         icono: 'inventory_2',
         clase: 'warning',
         roles: [Role.ADMIN, Role.CHEF],

@@ -1,4 +1,5 @@
 import { Column, Entity, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { decimalTransformer } from 'src/common/decimal.transformer';
 
 export enum TipoMovimientoInventario {
   RESERVA = 'reserva',
@@ -28,7 +29,7 @@ export class MovimientoInventario {
   @Column({ type: 'enum', enum: TipoMovimientoInventario })
   tipo: TipoMovimientoInventario;
 
-  @Column({ type: 'decimal', precision: 14, scale: 3 })
+  @Column({ type: 'decimal', precision: 14, scale: 3, transformer: decimalTransformer })
   cantidad: number;
 
   @Column({ type: 'bigint', nullable: true })

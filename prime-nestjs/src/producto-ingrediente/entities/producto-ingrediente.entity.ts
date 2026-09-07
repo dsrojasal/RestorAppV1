@@ -1,6 +1,7 @@
 import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { Producto } from 'src/productos/entities/producto.entity';
 import { Ingrediente } from 'src/ingredientes/entities/ingrediente.entity';
+import { decimalTransformer } from 'src/common/decimal.transformer';
 
 @Entity()
 @Unique(['productoId', 'ingredienteId'])
@@ -22,6 +23,6 @@ export class ProductoIngrediente {
   @JoinColumn({ name: 'ingredienteId' })
   ingrediente: Ingrediente;
 
-  @Column({ type: 'decimal', precision: 10, scale: 3, default: 1 })
+  @Column({ type: 'decimal', precision: 10, scale: 3, default: 1, transformer: decimalTransformer })
   cantidad: number;
 }

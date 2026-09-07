@@ -25,6 +25,10 @@ export class CreateProductoDto {
   @Min(0)
   stockMinimo?: number;
 
+  @IsOptional()
+  @IsString()
+  stockMinimoUnidad?: string;
+
   @IsNotEmpty()
   @IsNumber()
   categoriaId: number;

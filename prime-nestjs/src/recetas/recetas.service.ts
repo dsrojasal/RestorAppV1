@@ -1,23 +1,25 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import Decimal from 'decimal.js';
 import { ProductoIngrediente } from 'src/producto-ingrediente/entities/producto-ingrediente.entity';
 import { Ingrediente } from 'src/ingredientes/entities/ingrediente.entity';
 import { Producto, TipoProducto } from 'src/productos/entities/producto.entity';
 import { MovimientoInventario, TipoMovimientoInventario } from './entities/movimiento-inventario.entity';
 import { SetRecetaDto } from './dto/set-receta.dto';
+import { aDecimal, formatearCantidad } from 'src/common/unidades';
 
 export interface Necesidad {
   tipo: 'ingrediente' | 'producto';
   id: number;
-  cantidad: number;
+  cantidad: Decimal;
 }
 
 export interface RecursoReq {
   tipo: 'ingrediente' | 'producto';
   id: number;
-  total: number;
-  items: { cantidad: number; lineaId: number }[];
+  total: Decimal;
+  items: { cantidad: Decimal; lineaId: number }[];
 }
 
 export interface DisponibilidadItem {
@@ -35,6 +37,7 @@ export interface StockBajoItem {
   stock: number;
   stockMinimo: number;
   unidad: string;
+  unidadMinimo: string | null;
 }
 
 export interface MovimientoDto {
@@ -48,7 +51,7 @@ export interface MovimientoDto {
   createdAt: string;
 }
 
-const EPSILON = 0.000001;
+const EPSILON = new Decimal('0.000001');
 
 @Injectable()
 export class RecetasService {
@@ -60,8 +63,8 @@ export class RecetasService {
     private readonly dataSource: DataSource,
   ) {}
 
-  private redondear(v: number): number {
-    return Math.round((v + Number.EPSILON) * 1000) / 1000;
+  private redondear(v: Decimal.Value): Decimal {
+    return new Decimal(v).toDecimalPlaces(3, Decimal.ROUND_HALF_UP);
   }
 
   async getReceta(productoId: number) {
@@ -76,7 +79,7 @@ export class RecetasService {
         ingredienteId: e.ingredienteId,
         nombre: e.ingrediente.nombre,
         unidad: e.ingrediente.unidad,
-        cantidad: Number(e.cantidad),
+        cantidad: e.cantidad,
       })),
     };
   }
@@ -102,7 +105,7 @@ export class RecetasService {
           manager.create(ProductoIngrediente, {
             productoId,
             ingredienteId: insumo.ingredienteId,
-            cantidad: insumo.cantidad,
+            cantidad: this.redondear(insumo.cantidad).toNumber(),
           }),
         );
       }
@@ -142,12 +145,16 @@ export class RecetasService {
         let motivo: string | null = null;
         for (const pi of lista) {
           const ing = ingMap.get(pi.ingredienteId);
-          const req = Number(pi.cantidad);
-          const disp = ing ? this.redondear(Number(ing.stock) - Number(ing.stockReservado)) : 0;
-          const unidadesPosibles = req > 0 ? Math.floor(disp / req) : Number.MAX_SAFE_INTEGER;
+          const req = aDecimal(pi.cantidad);
+          const stock = ing ? aDecimal(ing.stock) : new Decimal(0);
+          const reservado = ing ? aDecimal(ing.stockReservado) : new Decimal(0);
+          const disp = this.redondear(stock.minus(reservado));
+          const unidadesPosibles = req.gt(0) ? disp.div(req).floor().toNumber() : Number.MAX_SAFE_INTEGER;
           if (unidadesPosibles < minimo) {
             minimo = unidadesPosibles;
-            motivo = `Sin ${ing?.nombre ?? 'insumo'} (${disp}${ing?.unidad ?? ''})`;
+            const unidad = ing?.unidad ?? '';
+            const dispTxt = formatearCantidad(disp, unidad);
+            motivo = `Sin ${ing?.nombre ?? 'insumo'} (${dispTxt})`;
           }
         }
         result.push({
@@ -159,13 +166,14 @@ export class RecetasService {
           tieneReceta: true,
         });
       } else {
-        const disp = this.redondear(Number(p.stock) - Number(p.stockReservado));
+        const disp = this.redondear(aDecimal(p.stock).minus(aDecimal(p.stockReservado)));
+        const txt = formatearCantidad(disp, 'und');
         result.push({
           productoId: p.id,
           nombre: p.nombre,
           tipo: p.tipo,
-          disponible: Math.max(0, Math.floor(disp)),
-          motivo: disp <= 0 ? `Agotado (${disp} disponibles)` : null,
+          disponible: disp.lte(0) ? 0 : disp.floor().toNumber(),
+          motivo: disp.lte(0) ? `Agotado (${txt} disponibles)` : null,
           tieneReceta: false,
         });
       }
@@ -202,17 +210,18 @@ export class RecetasService {
     }));
   }
 
-  private async necesidadesDeLinea(manager: EntityManager, producto: Producto, cantidad: number): Promise<Necesidad[]> {
+  private async necesidadesDeLinea(manager: EntityManager, producto: Producto, cantidad: number | Decimal): Promise<Necesidad[]> {
+    const qty = aDecimal(cantidad);
     if (producto.tipo === TipoProducto.PLATO) {
       const insumos = await manager.find(ProductoIngrediente, { where: { productoId: producto.id } });
       if (insumos.length === 0) return [];
       return insumos.map((i) => ({
         tipo: 'ingrediente',
         id: i.ingredienteId,
-        cantidad: this.redondear(Number(i.cantidad) * cantidad),
+        cantidad: this.redondear(aDecimal(i.cantidad).mul(qty)),
       }));
     }
-    return [{ tipo: 'producto', id: producto.id, cantidad }];
+    return [{ tipo: 'producto', id: producto.id, cantidad: this.redondear(qty) }];
   }
 
   private async necesidadesParaLineas(
@@ -221,9 +230,15 @@ export class RecetasService {
   ): Promise<RecursoReq[]> {
     const ing = new Map<number, RecursoReq>();
     const prod = new Map<number, RecursoReq>();
-    const push = (map: Map<number, RecursoReq>, tipo: 'ingrediente' | 'producto', id: number, cantidad: number, lineaId: number) => {
-      const req = map.get(id) ?? { tipo, id, total: 0, items: [] };
-      req.total = this.redondear(req.total + cantidad);
+    const push = (
+      map: Map<number, RecursoReq>,
+      tipo: 'ingrediente' | 'producto',
+      id: number,
+      cantidad: Decimal,
+      lineaId: number,
+    ) => {
+      const req = map.get(id) ?? { tipo, id, total: new Decimal(0), items: [] };
+      req.total = this.redondear(req.total.add(cantidad));
       req.items.push({ cantidad, lineaId });
       map.set(id, req);
     };
@@ -247,11 +262,16 @@ export class RecetasService {
     const bloqueados = await this.bloquearRecursos(manager, recursos);
     const faltantes: string[] = [];
     for (const r of recursos) {
-      const disp = this.redondear(Number(bloqueados.get(this.clave(r))?.stock ?? 0) - Number(bloqueados.get(this.clave(r))?.stockReservado ?? 0));
-      if (disp < r.total) {
+      const entidad = bloqueados.get(this.clave(r));
+      const stock = aDecimal(entidad?.stock);
+      const reservado = aDecimal(entidad?.stockReservado);
+      const disp = this.redondear(stock.minus(reservado));
+      if (disp.lt(r.total)) {
         const nombre = this.nombreDe(bloqueados, r);
         const unidad = this.unidadDe(bloqueados, r);
-        faltantes.push(`${nombre}: se necesitan ${r.total}${unidad} y hay ${disp}${unidad} disponibles`);
+        faltantes.push(
+          `${nombre}: se necesitan ${formatearCantidad(r.total, unidad)} y hay ${formatearCantidad(disp, unidad)} disponibles`,
+        );
       }
     }
     if (faltantes.length > 0) {
@@ -261,13 +281,13 @@ export class RecetasService {
     for (const r of recursos) {
       const entidad = bloqueados.get(this.clave(r));
       if (!entidad) continue;
-      entidad.stockReservado = this.redondear(Number(entidad.stockReservado) + r.total);
+      entidad.stockReservado = this.redondear(aDecimal(entidad.stockReservado).add(r.total)).toNumber();
       await manager.save(entidad);
       for (const item of r.items) {
         await manager.save(
           manager.create(MovimientoInventario, {
             tipo: TipoMovimientoInventario.RESERVA,
-            cantidad: item.cantidad,
+            cantidad: this.redondear(item.cantidad).toNumber(),
             ingredienteId: r.tipo === 'ingrediente' ? r.id : null,
             productoId: r.tipo === 'producto' ? r.id : null,
             pedidoLineaId: item.lineaId || null,
@@ -285,20 +305,20 @@ export class RecetasService {
     for (const r of recursos) {
       const entidad = bloqueados.get(this.clave(r));
       if (!entidad) continue;
-      const reservado = Number(entidad.stockReservado);
-      const liberar = reservado < r.total ? reservado : r.total;
-      if (liberar <= 0) continue;
-      entidad.stockReservado = this.redondear(reservado - liberar);
+      const reservado = aDecimal(entidad.stockReservado);
+      const liberar = reservado.lt(r.total) ? reservado : r.total;
+      if (liberar.lte(0)) continue;
+      entidad.stockReservado = this.redondear(reservado.sub(liberar)).toNumber();
       await manager.save(entidad);
       let restante = liberar;
       for (const item of r.items) {
-        const cantidad = Math.min(item.cantidad, restante);
-        restante -= cantidad;
-        if (cantidad <= 0) continue;
+        const cantidad = item.cantidad.lt(restante) ? item.cantidad : restante;
+        restante = restante.sub(cantidad);
+        if (cantidad.lte(0)) continue;
         await manager.save(
           manager.create(MovimientoInventario, {
             tipo: TipoMovimientoInventario.LIBERACION,
-            cantidad: -cantidad,
+            cantidad: this.redondear(cantidad.neg()).toNumber(),
             ingredienteId: r.tipo === 'ingrediente' ? r.id : null,
             productoId: r.tipo === 'producto' ? r.id : null,
             pedidoLineaId: item.lineaId || null,
@@ -317,20 +337,20 @@ export class RecetasService {
     for (const r of recursos) {
       const entidad = bloqueados.get(this.clave(r));
       if (!entidad) continue;
-      const reservado = Number(entidad.stockReservado);
-      const liberar = reservado < r.total ? reservado : r.total;
-      if (liberar <= 0) continue;
-      entidad.stockReservado = this.redondear(reservado - liberar);
+      const reservado = aDecimal(entidad.stockReservado);
+      const liberar = reservado.lt(r.total) ? reservado : r.total;
+      if (liberar.lte(0)) continue;
+      entidad.stockReservado = this.redondear(reservado.sub(liberar)).toNumber();
       await manager.save(entidad);
       let restante = liberar;
       for (const item of r.items) {
-        const cantidad = Math.min(item.cantidad, restante);
-        restante -= cantidad;
-        if (cantidad <= 0) continue;
+        const cantidad = item.cantidad.lt(restante) ? item.cantidad : restante;
+        restante = restante.sub(cantidad);
+        if (cantidad.lte(0)) continue;
         await manager.save(
           manager.create(MovimientoInventario, {
             tipo: TipoMovimientoInventario.LIBERACION,
-            cantidad: -cantidad,
+            cantidad: this.redondear(cantidad.neg()).toNumber(),
             ingredienteId: r.tipo === 'ingrediente' ? r.id : null,
             productoId: r.tipo === 'producto' ? r.id : null,
             pedidoLineaId: item.lineaId || null,
@@ -351,44 +371,47 @@ export class RecetasService {
       this.necesidadesDeLinea(manager, producto, linea.cantidadAnterior),
       this.necesidadesDeLinea(manager, producto, linea.cantidadNueva),
     ]);
-    const deltaPorClave = new Map<string, number>();
+    const deltaPorClave = new Map<string, Decimal>();
     for (const n of antes) {
-      deltaPorClave.set(this.claveNecesidad(n), (deltaPorClave.get(this.claveNecesidad(n)) ?? 0) - n.cantidad);
+      deltaPorClave.set(this.claveNecesidad(n), (deltaPorClave.get(this.claveNecesidad(n)) ?? new Decimal(0)).sub(n.cantidad));
     }
     for (const n of despues) {
-      deltaPorClave.set(this.claveNecesidad(n), (deltaPorClave.get(this.claveNecesidad(n)) ?? 0) + n.cantidad);
+      deltaPorClave.set(this.claveNecesidad(n), (deltaPorClave.get(this.claveNecesidad(n)) ?? new Decimal(0)).add(n.cantidad));
     }
 
     const deltas: RecursoReq[] = [];
     for (const [clave, cantidad] of deltaPorClave) {
-      if (Math.abs(cantidad) < EPSILON) continue;
+      if (cantidad.abs().lt(EPSILON)) continue;
       const tipo = clave.startsWith('i:') ? 'ingrediente' : 'producto';
       deltas.push({ tipo, id: Number(clave.slice(2)), total: cantidad, items: [{ cantidad, lineaId: linea.lineaId }] });
     }
     if (deltas.length === 0) return;
 
-    const soloReales = deltas.filter((d) => d.total !== 0);
+    const soloReales = deltas.filter((d) => !d.total.eq(0));
+    if (soloReales.length === 0) return;
     const bloqueados = await this.bloquearRecursos(manager, soloReales);
 
     for (const r of soloReales) {
       const entidad = bloqueados.get(this.clave(r));
       if (!entidad) continue;
-      if (r.total > 0) {
-        const disp = this.redondear(Number(entidad.stock) - Number(entidad.stockReservado));
+      if (r.total.gt(0)) {
+        const disp = this.redondear(aDecimal(entidad.stock).minus(aDecimal(entidad.stockReservado)));
         const nombre = this.nombreDe(bloqueados, r);
         const unidad = this.unidadDe(bloqueados, r);
-        if (disp < r.total) {
-          throw new BadRequestException(`Stock insuficiente de ${nombre}: se necesitan ${r.total}${unidad} y hay ${disp}${unidad} disponibles`);
+        if (disp.lt(r.total)) {
+          throw new BadRequestException(
+            `Stock insuficiente de ${nombre}: se necesitan ${formatearCantidad(r.total, unidad)} y hay ${formatearCantidad(disp, unidad)} disponibles`,
+          );
         }
       }
-      const reservado = Number(entidad.stockReservado);
-      entidad.stockReservado = r.total > 0 ? this.redondear(reservado + r.total) : this.redondear(Math.max(0, reservado + r.total));
+      const reservado = aDecimal(entidad.stockReservado);
+      entidad.stockReservado = this.redondear(Decimal.max(reservado.add(r.total), 0)).toNumber();
       await manager.save(entidad);
       for (const item of r.items) {
         await manager.save(
           manager.create(MovimientoInventario, {
-            tipo: item.cantidad > 0 ? TipoMovimientoInventario.RESERVA : TipoMovimientoInventario.LIBERACION,
-            cantidad: item.cantidad,
+            tipo: item.cantidad.gt(0) ? TipoMovimientoInventario.RESERVA : TipoMovimientoInventario.LIBERACION,
+            cantidad: this.redondear(item.cantidad).toNumber(),
             ingredienteId: r.tipo === 'ingrediente' ? r.id : null,
             productoId: r.tipo === 'producto' ? r.id : null,
             pedidoLineaId: linea.lineaId || null,
@@ -408,11 +431,11 @@ export class RecetasService {
     const faltantes: string[] = [];
     for (const r of recursos) {
       const entidad = bloqueados.get(this.clave(r));
-      const fisico = Number(entidad?.stock ?? 0);
-      if (fisico + EPSILON < r.total) {
+      const fisico = aDecimal(entidad?.stock);
+      if (fisico.plus(EPSILON).lt(r.total)) {
         const nombre = this.nombreDe(bloqueados, r);
         const unidad = this.unidadDe(bloqueados, r);
-        faltantes.push(`${nombre} (tienes ${fisico}${unidad} y se necesitan ${r.total}${unidad})`);
+        faltantes.push(`${nombre} (tienes ${formatearCantidad(fisico, unidad)} y se necesitan ${formatearCantidad(r.total, unidad)})`);
       }
     }
     if (faltantes.length > 0) {
@@ -425,15 +448,15 @@ export class RecetasService {
     for (const r of recursos) {
       const entidad = bloqueados.get(this.clave(r));
       if (!entidad) continue;
-      entidad.stock = this.redondear(Number(entidad.stock) - r.total);
-      entidad.stockReservado = this.redondear(Math.max(0, Number(entidad.stockReservado) - r.total));
+      entidad.stock = this.redondear(aDecimal(entidad.stock).sub(r.total)).toNumber();
+      entidad.stockReservado = this.redondear(Decimal.max(aDecimal(entidad.stockReservado).sub(r.total), 0)).toNumber();
       await manager.save(entidad);
 
       for (const item of r.items) {
         await manager.save(
           manager.create(MovimientoInventario, {
             tipo: TipoMovimientoInventario.CONSUMO,
-            cantidad: -item.cantidad,
+            cantidad: this.redondear(item.cantidad.neg()).toNumber(),
             ingredienteId: r.tipo === 'ingrediente' ? r.id : null,
             productoId: r.tipo === 'producto' ? r.id : null,
             pedidoLineaId: item.lineaId || null,
@@ -441,15 +464,20 @@ export class RecetasService {
         );
       }
 
-      const stockFinal = Number(entidad.stock);
-      const stockMinimo = Number((entidad as Ingrediente).stockMinimo ?? (entidad as Producto).stockMinimo ?? 0);
-      if (stockMinimo > 0 && stockFinal <= stockMinimo) {
+      const stockFinal = aDecimal(entidad.stock);
+      const stockMinimo = aDecimal((entidad as Ingrediente).stockMinimo ?? (entidad as Producto).stockMinimo ?? 0);
+      if (stockMinimo.gt(0) && stockFinal.lte(stockMinimo)) {
+        const unidad = this.unidadDe(bloqueados, r);
         bajos.push({
           refId: r.tipo === 'ingrediente' ? `i:${r.id}` : `p:${r.id}`,
           nombre: this.nombreDe(bloqueados, r) || '',
-          stock: stockFinal,
-          stockMinimo,
-          unidad: this.unidadDe(bloqueados, r),
+          stock: stockFinal.toNumber(),
+          stockMinimo: stockMinimo.toNumber(),
+          unidad,
+          unidadMinimo:
+            r.tipo === 'ingrediente'
+              ? ((entidad as Ingrediente).stockMinimoUnidad ?? null)
+              : ((entidad as Producto).stockMinimoUnidad ?? null),
         });
       }
     }
@@ -499,6 +527,6 @@ export class RecetasService {
     const e = bloqueados.get(this.clave(r));
     if (!e) return '';
     if (r.tipo === 'ingrediente') return (e as Ingrediente).unidad;
-    return 'uds';
+    return 'und';
   }
 }

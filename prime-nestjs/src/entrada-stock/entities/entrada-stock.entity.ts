@@ -2,6 +2,7 @@ import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDa
 import { Producto } from 'src/productos/entities/producto.entity';
 import { Ingrediente } from 'src/ingredientes/entities/ingrediente.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
+import { decimalTransformer } from 'src/common/decimal.transformer';
 
 @Entity()
 export class EntradaStock {
@@ -22,13 +23,13 @@ export class EntradaStock {
   @JoinColumn({ name: 'ingredienteId' })
   ingrediente: Ingrediente;
 
-  @Column()
+  @Column({ type: 'decimal', precision: 14, scale: 3, transformer: decimalTransformer })
   stockAntes: number;
 
-  @Column()
+  @Column({ type: 'decimal', precision: 14, scale: 3, transformer: decimalTransformer })
   cantidad: number;
 
-  @Column()
+  @Column({ type: 'decimal', precision: 14, scale: 3, transformer: decimalTransformer })
   stockDespues: number;
 
   @Column()
