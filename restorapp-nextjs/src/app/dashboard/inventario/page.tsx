@@ -33,11 +33,35 @@ interface EntradaStock {
   usuario?: { id: number; name: string } | null;
 }
 
+interface DisponibilidadItem {
+  productoId: number;
+  nombre: string;
+  tipo: string;
+  disponible: number | null;
+  motivo: string | null;
+  tieneReceta: boolean;
+}
+
+interface RecetaInsumo {
+  ingredienteId: number;
+  nombre: string;
+  unidad: string;
+  cantidad: number;
+}
+
+interface RecetaDetail {
+  productoId: number;
+  producto: string;
+  tipo: string;
+  insumos: RecetaInsumo[];
+}
+
 type Target = { tipo: 'producto' | 'ingrediente'; id: number; nombre: string; stock: number };
 
 const TABS = [
   { id: 'insumos', label: 'Insumos' },
   { id: 'contables', label: 'Contables' },
+  { id: 'recetas', label: 'Recetas' },
   { id: 'entradas', label: 'Entradas' },
 ];
 
@@ -45,19 +69,25 @@ export default function InventarioPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([]);
   const [entradas, setEntradas] = useState<EntradaStock[]>([]);
+  const [disponibilidad, setDisponibilidad] = useState<DisponibilidadItem[]>([]);
+  const [me, setMe] = useState<{ id: number; rolId: number } | null>(null);
   const [tab, setTab] = useState('insumos');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [entradaTarget, setEntradaTarget] = useState<Target | null>(null);
+  const [recetaDetail, setRecetaDetail] = useState<RecetaDetail | null>(null);
+  const [recetaDraft, setRecetaDraft] = useState<Omit<RecetaInsumo, 'nombre' | 'unidad'>[]>([]);
   const [error, setError] = useState('');
   const menuRef = useRef<ContextMenuRef>(null);
 
   const load = async () => {
     try {
       setLoading(true);
-      const [resP, resI] = await Promise.all([
+      const [resP, resI, resD, resMe] = await Promise.all([
         fetch('/api/backend/productos', { headers: getAuthHeaders() }),
         fetch('/api/backend/ingredientes', { headers: getAuthHeaders() }),
+        fetch('/api/backend/recetas/disponibilidad', { headers: getAuthHeaders() }),
+        fetch('/api/backend/usuarios/me', { headers: getAuthHeaders() }),
       ]);
       if (resP.status === 401 || resI.status === 401) {
         window.location.href = '/login';
@@ -67,9 +97,11 @@ export default function InventarioPage() {
         alert('Error al cargar el inventario');
         return;
       }
-      const [datosP, datosI] = await Promise.all([resP.json(), resI.json()]);
+      const [datosP, datosI, datosD, datosMe] = await Promise.all([resP.json(), resI.json(), resD.json(), resMe.json()]);
       setProductos(Array.isArray(datosP) ? datosP : []);
       setIngredientes(Array.isArray(datosI) ? datosI : []);
+      setDisponibilidad(Array.isArray(datosD) ? datosD : []);
+      if (datosMe?.id) setMe({ id: datosMe.id, rolId: datosMe.rolId });
     } catch {
       alert('Error de conexión');
     } finally {
@@ -104,19 +136,87 @@ export default function InventarioPage() {
   }, [tab]);
 
   const contables = productos.filter((p) => p.tipo !== 'plato');
+  const platos = productos.filter((p) => p.tipo === 'plato');
   const esBajo = (stock: number, stockMinimo: number) => stock === 0 || (stockMinimo > 0 && stock <= stockMinimo);
   const enStockBajo = [...ingredientes.filter((i) => esBajo(i.stock, i.stockMinimo)), ...contables.filter((p) => esBajo(p.stock, p.stockMinimo))].length;
 
   const query = search.toLowerCase();
   const filteredIns = ingredientes.filter((i) => !query || i.nombre.toLowerCase().includes(query));
   const filteredCont = contables.filter((p) => !query || p.nombre.toLowerCase().includes(query));
+  const filteredRec = platos.filter((p) => !query || p.nombre.toLowerCase().includes(query));
   const filteredEnt = entradas.filter(
     (e) => !query || (e.producto?.nombre || e.ingrediente?.nombre || '').toLowerCase().includes(query),
   );
 
+  const esAdmin = !!me && me.rolId === 1;
+
   function openEntrada(t: Target) {
     setEntradaTarget(t);
     setError('');
+  }
+
+  async function openReceta(productoId: number) {
+    try {
+      const res = await fetch(`/api/backend/recetas/${productoId}`, { headers: getAuthHeaders() });
+      if (!res.ok) {
+        const err = await handleApiError(res);
+        alert(err.message || 'No se pudo cargar la receta');
+        return;
+      }
+      const data: RecetaDetail = await res.json();
+      setRecetaDetail(data);
+      setRecetaDraft(data.insumos.map((i) => ({ ingredienteId: i.ingredienteId, cantidad: i.cantidad })));
+      setError('');
+    } catch {
+      alert('Error de conexión');
+    }
+  }
+
+  async function saveReceta() {
+    if (!recetaDetail) return;
+    const insumos = recetaDraft
+      .filter((i) => i.ingredienteId > 0 && Number(i.cantidad) > 0)
+      .map((i) => ({ ingredienteId: i.ingredienteId, cantidad: Number(i.cantidad) }));
+    if (insumos.length === 0) {
+      alert('Agrega al menos un insumo con cantidad mayor a 0');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/backend/recetas/${recetaDetail.productoId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ insumos }),
+      });
+      if (!res.ok) {
+        const err = await handleApiError(res);
+        alert(err.message || 'No se pudo guardar la receta');
+        return;
+      }
+      setRecetaDetail(null);
+      await load();
+    } catch {
+      alert('Error de conexión');
+    }
+  }
+
+  async function deleteReceta() {
+    if (!recetaDetail) return;
+    if (!confirm(`¿Eliminar la receta de ${recetaDetail.producto}?`)) return;
+    try {
+      const res = await fetch(`/api/backend/recetas/${recetaDetail.productoId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const err = await handleApiError(res);
+        alert(err.message || 'No se pudo eliminar la receta');
+        return;
+      }
+      setRecetaDetail(null);
+      await load();
+    } catch {
+      alert('Error de conexión');
+    }
   }
 
   async function registrarEntrada(e: React.FormEvent) {
@@ -306,6 +406,56 @@ export default function InventarioPage() {
               </div>
             )}
           </>
+        ) : tab === 'recetas' ? (
+          <>
+            <p className="list-label">Platos y sus recetas</p>
+            {filteredRec.length === 0 ? (
+              <div className="card-data" style={{ textAlign: 'center', padding: '40px 24px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--text-muted)' }}>lunch_dining</span>
+                <p style={{ color: 'var(--text-muted)' }}>No hay platos registrados.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {filteredRec.map((p) => {
+                  const disp = disponibilidad.find((d) => d.productoId === p.id);
+                  const sinLimite = disp?.tieneReceta === false || disp?.disponible == null;
+                  const agotado = !sinLimite && (disp?.disponible ?? 0) <= 0;
+                  return (
+                    <div key={p.id} className="user-card">
+                      <div className="user-avatar">
+                        <span className="material-symbols-outlined">lunch_dining</span>
+                      </div>
+                      <div className="user-info">
+                        <span className="user-name">{p.nombre}</span>
+                        <p className="user-email">{disp?.tieneReceta ? 'Plato con receta' : 'Plato · Sin receta (venta libre)'}</p>
+                        <div className="user-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                          {sinLimite ? (
+                            <span className="role-badge admin" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>all_inclusive</span> Sin límite
+                            </span>
+                          ) : agotado ? (
+                            <span className="role-badge chef" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span> Agotado
+                            </span>
+                          ) : (
+                            <span className="role-badge admin" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>check</span> Disponible: {disp?.disponible}
+                            </span>
+                          )}
+                          {!sinLimite && disp?.motivo && (
+                            <span className="status-text" style={{ color: 'var(--text-muted)', fontSize: 12 }}>{disp.motivo}</span>
+                          )}
+                        </div>
+                      </div>
+                      <button className="user-action" title="Ver / editar receta" onClick={() => openReceta(p.id)}>
+                        <span className="material-symbols-outlined">{esAdmin ? 'menu_book' : 'visibility'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         ) : (
           <>
             <p className="list-label">Historial de entradas de stock</p>
@@ -373,6 +523,98 @@ export default function InventarioPage() {
             <button className="btn-primary" type="submit">Registrar Entrada</button>
           </div>
         </form>
+      </ModalSheet>
+
+      <ModalSheet
+        isOpen={recetaDetail !== null}
+        onClose={() => setRecetaDetail(null)}
+        title={recetaDetail ? `Receta: ${recetaDetail.producto}` : 'Receta'}
+      >
+        {recetaDetail && (
+          <div>
+            {esAdmin ? (
+              <>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                  Define cuánto de cada insumo consume este plato. Con receta se descuenta del inventario al estar listo.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  {recetaDraft.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <select
+                        value={item.ingredienteId}
+                        onChange={(e) => {
+                          const draft = [...recetaDraft];
+                          draft[idx] = { ...draft[idx], ingredienteId: Number(e.target.value) };
+                          setRecetaDraft(draft);
+                        }}
+                        style={{ flex: 1, padding: '10px 12px', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13, color: 'var(--text)', outline: 'none' }}
+                      >
+                        <option value={0}>Selecciona insumo...</option>
+                        {ingredientes.map((ing) => (
+                          <option key={ing.id} value={ing.id}>{ing.nombre} ({ing.unidad})</option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        step="0.001"
+                        min="0.001"
+                        value={item.cantidad}
+                        onChange={(e) => {
+                          const draft = [...recetaDraft];
+                          draft[idx] = { ...draft[idx], cantidad: Number(e.target.value) };
+                          setRecetaDraft(draft);
+                        }}
+                        placeholder="Cantidad"
+                        style={{ width: 90, padding: '10px 12px', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13, color: 'var(--text)', outline: 'none' }}
+                      />
+                      <button className="user-action" title="Quitar insumo" onClick={() => setRecetaDraft((prev) => prev.filter((_, i) => i !== idx))}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#E74C3C' }}>close</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setRecetaDraft((prev) => [...prev, { ingredienteId: 0, cantidad: 0 }])}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 700, fontSize: 13, marginBottom: 12 }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span> Agregar insumo
+                </button>
+                <div className="modal-actions" style={{ marginTop: 8 }}>
+                  <button className="btn-cancel" onClick={() => setRecetaDetail(null)}>Cancelar</button>
+                  <button className="btn-primary" onClick={saveReceta}>Guardar receta</button>
+                </div>
+                <button onClick={deleteReceta} style={{ display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'none', cursor: 'pointer', color: '#E74C3C', fontWeight: 700, fontSize: 13, width: '100%', justifyContent: 'center', marginTop: 16 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span> Eliminar receta (venta libre)
+                </button>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                  Insumos que consume este plato al estar listo:
+                </p>
+                {recetaDetail.insumos.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>
+                    Sin receta definida — se vende sin límite.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+                    {recetaDetail.insumos.map((i, idx) => (
+                      <div key={idx} className="order-item-row" style={{ padding: '8px 0' }}>
+                        <span style={{ flex: 1, fontSize: 14, color: 'var(--text)' }}>{i.nombre}</span>
+                        <span className="font-bold" style={{ color: 'var(--primary)', fontSize: 14, whiteSpace: 'nowrap' }}>
+                          {i.cantidad} {i.unidad}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="modal-actions" style={{ marginTop: 8 }}>
+                  <button className="btn-primary" onClick={() => setRecetaDetail(null)}>Cerrar</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </ModalSheet>
 
       <ContextMenu

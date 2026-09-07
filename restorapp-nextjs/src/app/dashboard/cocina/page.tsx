@@ -204,6 +204,18 @@ export default function CocinaPage() {
                         {l.estado === 'cancelado' && (
                           <span style={{ marginLeft: 6, fontSize: 11, color: '#E74C3C', fontWeight: 700 }}>[cancelado]</span>
                         )}
+                        {(l.estado === 'pendiente' || l.estado === 'en_preparacion') && (
+                          <button
+                            title="Cancelar ítem (libera la reserva de inventario)"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`¿Cancelar ${l.producto?.nombre} del pedido?`)) cambiarEstado(p.id, l.id, 'cancelado');
+                            }}
+                            style={{ marginLeft: 8, border: 'none', background: 'none', cursor: 'pointer', color: '#E74C3C', display: 'inline-flex', alignItems: 'center', padding: 2, verticalAlign: 'middle' }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
+                          </button>
+                        )}
                         {l.observacion && (
                           <div className="kc-item-note">
                             <span className="material-symbols-outlined">edit_note</span>

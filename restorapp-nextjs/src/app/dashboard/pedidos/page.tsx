@@ -10,6 +10,15 @@ interface Mesa { id: number; numero: number; capacidad: number; estado: string; 
 
 interface Producto { id: number; nombre: string; precio: number; tipo: string; stock: number; isActive: boolean; }
 
+interface DisponibilidadItem {
+  productoId: number;
+  nombre: string;
+  tipo: string;
+  disponible: number | null;
+  motivo: string | null;
+  tieneReceta: boolean;
+}
+
 interface DetallePedido {
   id: number; productoId: number; cantidad: number; precioUnitario: number; subtotal: number;
   estado: 'pendiente' | 'en_preparacion' | 'listo' | 'entregado' | 'cancelado';
@@ -81,6 +90,7 @@ function fmtHora(fecha: string): string {
 export default function PedidosPage() {
   const [mesas, setMesas] = useState<Mesa[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [disponibilidad, setDisponibilidad] = useState<DisponibilidadItem[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,19 +134,21 @@ export default function PedidosPage() {
     try {
       setLoading(true);
       const headers = getAuthHeaders();
-      const [mesasRes, prodsRes, pedidosRes, meRes] = await Promise.all([
+      const [mesasRes, prodsRes, pedidosRes, meRes, dispoRes] = await Promise.all([
         fetch('/api/backend/mesas', { headers }),
         fetch('/api/backend/productos', { headers }),
         fetch('/api/backend/pedidos', { headers }),
         fetch('/api/backend/usuarios/me', { headers }),
+        fetch('/api/backend/recetas/disponibilidad', { headers }),
       ]);
       if (mesasRes.status === 401 || pedidosRes.status === 401) { window.location.href = '/login'; return; }
       if (!mesasRes.ok || !prodsRes.ok || !pedidosRes.ok) { alert('Error al cargar los datos'); return; }
-      const [mesasData, prodsData, pedidosData, meData] = await Promise.all([
-        mesasRes.json(), prodsRes.json(), pedidosRes.json(), meRes.json(),
+      const [mesasData, prodsData, pedidosData, meData, dispoData] = await Promise.all([
+        mesasRes.json(), prodsRes.json(), pedidosRes.json(), meRes.json(), dispoRes.ok ? dispoRes.json() : [],
       ]);
       setMesas(Array.isArray(mesasData) ? mesasData : []);
       setProductos(Array.isArray(prodsData) ? prodsData.filter((p: Producto) => p.isActive) : []);
+      setDisponibilidad(Array.isArray(dispoData) ? dispoData : []);
       setPedidos(Array.isArray(pedidosData) ? pedidosData : []);
       if (meData?.id) setMe({ id: meData.id, name: meData.name, rolId: meData.rolId });
       if (!selectedMesaId && Array.isArray(mesasData) && mesasData.length > 0) {
@@ -174,6 +186,9 @@ export default function PedidosPage() {
     return true;
   });
   const cartTotal = Object.entries(cart).reduce((acc, [id, qty]) => acc + (productos.find(x => x.id === Number(id))?.precio || 0) * qty, 0);
+  const dispoMap = new Map(disponibilidad.map(d => [d.productoId, d.disponible]));
+  const editDisp = editTarget ? dispoMap.get(editTarget.linea.producto?.id) : undefined;
+  const editLimite = editDisp == null ? Number.MAX_SAFE_INTEGER : Math.max(0, Math.floor(editDisp));
   const addQty = (id: number, delta: number) => setCart(prev => { const n = (prev[id] || 0) + delta; const c = { ...prev }; if (n <= 0) delete c[id]; else c[id] = n; return c; });
 
   async function api(method: string, url: string, body?: object) {
@@ -572,29 +587,44 @@ export default function PedidosPage() {
             <p className="text-sm" style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>Sin productos disponibles.</p>
           ) : filteredProductos.map(p => {
             const qty = cart[p.id] || 0;
+            const disp = dispoMap.get(p.id);
+            const limite = disp == null ? Number.MAX_SAFE_INTEGER : Math.max(0, Math.floor(disp));
+            const agotado = limite <= 0;
+            const addOne = () => {
+              if (qty >= limite) {
+                alert(agotado ? `${p.nombre} agotado` : `Solo quedan ${limite} de ${p.nombre}`);
+                return;
+              }
+              addQty(p.id, 1);
+            };
             return (
-              <div key={p.id} className="order-item-row" style={{ padding: '10px 0', gap: 10, flexDirection: 'column', alignItems: 'stretch' }}>
+              <div key={p.id} className="order-item-row" style={{ padding: '10px 0', gap: 10, flexDirection: 'column', alignItems: 'stretch', opacity: agotado ? 0.5 : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{p.nombre}</div>
+                    <div className="font-semibold text-sm" style={{ color: agotado ? 'var(--text-muted)' : 'var(--text)' }}>{p.nombre}</div>
                     <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{fmt(p.precio)}</div>
+                    {disp != null && (
+                      <div className="text-xs" style={{ color: agotado ? '#E74C3C' : '#B45309', fontWeight: 600, marginTop: 2 }}>
+                        {agotado ? 'Agotado' : `Quedan ${limite}`}
+                      </div>
+                    )}
                     {notas[p.id] && notaEditing !== p.id && (
                       <div className="text-xs" style={{ color: 'var(--primary)', marginTop: 2, fontWeight: 600 }}>📝 {notas[p.id]}</div>
                     )}
                   </div>
                   <button className="user-action" title={notas[p.id] ? 'Editar nota del producto' : 'Agregar nota al producto'}
-                    onClick={() => { if (qty === 0) addQty(p.id, 1); abrirNota(p.id); }}>
+                    onClick={() => { if (qty === 0 && limite > 0) addQty(p.id, 1); abrirNota(p.id); }}>
                     <span className="material-symbols-outlined" style={{ fontSize: 18, color: notas[p.id] ? 'var(--primary)' : 'var(--text-muted)' }}>edit</span>
                   </button>
                   {qty === 0 ? (
-                    <button className="btn-primary" onClick={() => addQty(p.id, 1)} style={{ padding: '6px 14px', fontSize: 13 }}>
+                    <button className="btn-primary" onClick={addOne} disabled={agotado} style={{ padding: '6px 14px', fontSize: 13, opacity: agotado ? 0.5 : 1 }}>
                       <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Agregar
                     </button>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <button className="user-action" onClick={() => addQty(p.id, -1)}><span className="material-symbols-outlined" style={{ fontSize: 20, color: '#E74C3C' }}>remove</span></button>
                       <span className="font-bold" style={{ minWidth: 18, textAlign: 'center' }}>{qty}</span>
-                      <button className="user-action" onClick={() => addQty(p.id, 1)}><span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--primary)' }}>add</span></button>
+                      <button className="user-action" title={qty >= limite && disp != null ? `Solo quedan ${limite}` : ''} onClick={addOne}><span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--primary)' }}>add</span></button>
                     </div>
                   )}
                 </div>
@@ -718,8 +748,16 @@ export default function PedidosPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <button className="user-action" onClick={() => setEditCantidad(Math.max(1, editCantidad - 1))}><span className="material-symbols-outlined" style={{ fontSize: 20, color: '#E74C3C' }}>remove</span></button>
                 <span className="font-bold" style={{ fontSize: 18, minWidth: 30, textAlign: 'center' }}>{editCantidad}</span>
-                <button className="user-action" onClick={() => setEditCantidad(editCantidad + 1)}><span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--primary)' }}>add</span></button>
+                <button className="user-action" title={editCantidad >= editLimite && editDisp != null ? `Solo quedan ${editLimite}` : ''}
+                  onClick={() => { if (editCantidad < editLimite) setEditCantidad(editCantidad + 1); }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--primary)' }}>add</span>
+                </button>
               </div>
+              {editDisp != null && (
+                <p style={{ fontSize: 12, color: editLimite <= 0 ? '#E74C3C' : '#B45309', fontWeight: 600, marginTop: 6 }}>
+                  {editLimite <= 0 ? 'Agotado — solo puedes bajar la cantidad' : `Disponible para servir: ${editLimite}`}
+                </p>
+              )}
             </div>
             <div className="form-field" style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: 6 }}>Observación</label>
