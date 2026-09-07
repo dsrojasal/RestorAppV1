@@ -52,7 +52,7 @@ export default function RecetasTab() {
         return;
       }
       const [dP, dI, dR] = await Promise.all([resP.json(), resI.json(), resR.json()]);
-      const listP: Producto[] = Array.isArray(dP) ? dP.filter((p) => p.isActive !== false) : [];
+      const listP: Producto[] = Array.isArray(dP) ? dP.filter((p) => p.isActive !== false && p.tipo === 'plato') : [];
       const listI: Ingrediente[] = Array.isArray(dI) ? dI : [];
       const listR: Receta[] = Array.isArray(dR) ? dR : [];
       setProductos(listP);
@@ -139,12 +139,12 @@ export default function RecetasTab() {
     <>
       <div className="cocina-header-info">
         <p className="cocina-welcome" style={{ marginBottom: 0 }}>
-          Las recetas son <b>opcionales</b>: solo los platos con receta descuentan inventario al prepararse.
+          Las recetas son <b>opcionales y solo aplican a los platos</b>: un plato con receta descuenta inventario al prepararse; las bebidas y productos contables controlan su propio stock.
         </p>
       </div>
 
       <div className="form-field" style={{ maxWidth: 420 }}>
-        <label>Selecciona un producto de la carta</label>
+        <label>Selecciona un plato de la carta</label>
         <select value={selected} onChange={(e) => setSelected(parseInt(e.target.value, 10) || 0)}>
           <option value={0} disabled>Selecciona un producto</option>
           {productos.map((p) => {
@@ -159,7 +159,7 @@ export default function RecetasTab() {
       ) : !prodActual ? (
         <div className="card-data" style={{ textAlign: 'center', padding: '40px 24px' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--text-muted)' }}>egg_alt</span>
-          <p style={{ color: 'var(--text-muted)' }}>Primero crea productos en la pestaña Platos.</p>
+          <p style={{ color: 'var(--text-muted)' }}>Primero crea platos en la pestaña Platos. Las bebidas y contables no usan receta: controlan su propio stock.</p>
         </div>
       ) : (
         <>
@@ -196,7 +196,7 @@ export default function RecetasTab() {
           </div>
 
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 12 }}>
-            El administrador puede dejar recetas vacías: eso significa que el producto no consume inventario (ej. gaseosas o helados).
+            Solo los platos pueden tener receta. Dejar la receta vacía significa que el plato no consume inventario al prepararse; las bebidas y contables se venden descontando su propio stock.
           </p>
         </>
       )}

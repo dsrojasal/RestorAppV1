@@ -18,7 +18,7 @@ interface DetallePedido {
   cantidad: number;
   precioUnitario: number;
   subtotal: number;
-  estado: 'pendiente' | 'en_preparacion' | 'listo' | 'cancelado';
+  estado: 'pendiente' | 'en_preparacion' | 'listo' | 'entregado' | 'cancelado';
   observacion: string | null;
   producto: Producto;
 }
@@ -47,10 +47,14 @@ function tiempoTranscurrido(fecha: string): string {
 }
 
 function pedidoEstado(d: Pedido): 'pendiente' | 'preparacion' | 'listo' | 'cancelado' {
-  if (d.detalles.some(l => l.estado === 'pendiente')) return 'pendiente';
-  if (d.detalles.some(l => l.estado === 'en_preparacion')) return 'preparacion';
-  if (d.detalles.every(l => l.estado === 'listo' || l.estado === 'cancelado')) return 'listo';
+  if (d.detalles.some(l => l.producto?.tipo === 'plato' && l.estado === 'pendiente')) return 'pendiente';
+  if (d.detalles.some(l => l.producto?.tipo === 'plato' && l.estado === 'en_preparacion')) return 'preparacion';
+  if (d.detalles.filter(l => l.producto?.tipo === 'plato').every(l => l.estado === 'listo' || l.estado === 'entregado' || l.estado === 'cancelado')) return 'listo';
   return 'cancelado';
+}
+
+function esPlato(d: DetallePedido): boolean {
+  return d.producto?.tipo === 'plato';
 }
 
 export default function CocinaPage() {
@@ -84,10 +88,8 @@ export default function CocinaPage() {
   const live = useLiveData(['pedidos.changed'], fetchPedidos);
 
   const pedidosActivos = pedidos.filter(p => {
-    const total = p.detalles.length;
-    if (total === 0) return false;
-    const activos = p.detalles.filter(l => l.estado !== 'cancelado').length;
-    return activos > 0;
+    const platos = p.detalles.filter(l => esPlato(l) && (l.estado === 'pendiente' || l.estado === 'en_preparacion' || l.estado === 'listo'));
+    return platos.length > 0;
   });
 
   const filtrados = currentFilter === 'todos'
@@ -95,7 +97,7 @@ export default function CocinaPage() {
     : pedidosActivos.filter(p => pedidoEstado(p) === currentFilter);
 
   const historial = pedidos.filter(p =>
-    p.detalles.length > 0 && p.detalles.every(l => l.estado === 'listo' || l.estado === 'cancelado')
+    p.detalles.some(esPlato) && p.detalles.filter(esPlato).every(l => l.estado === 'listo' || l.estado === 'entregado' || l.estado === 'cancelado')
   );
 
   async function cambiarEstado(pedidoId: number, lineaId: number, estado: string) {
@@ -174,8 +176,8 @@ export default function CocinaPage() {
           ) : (
             filtrados.map(p => {
               const estadoP = pedidoEstado(p);
-              const pendientes = p.detalles.filter(l => l.estado === 'pendiente');
-              const preparando = p.detalles.filter(l => l.estado === 'en_preparacion');
+              const pendientes = p.detalles.filter(l => l.estado === 'pendiente' && esPlato(l));
+              const preparando = p.detalles.filter(l => l.estado === 'en_preparacion' && esPlato(l));
               const badgeLabel = estadoP === 'pendiente' ? 'Pendiente' : estadoP === 'preparacion' ? 'En preparación' : 'Listo';
               const badgeIcon = estadoP === 'pendiente' ? 'hourglass_top' : estadoP === 'preparacion' ? 'soup_kitchen' : 'check';
               return (
@@ -192,7 +194,7 @@ export default function CocinaPage() {
                   <div className="kc-divider" />
                   <div className="kc-waiter">Mesero: {p.usuario?.name}</div>
                   <div className="kc-items">
-                    {p.detalles.map(l => (
+                    {p.detalles.filter(esPlato).map(l => (
                       <div key={l.id} className="kc-item">
                         • {l.producto?.nombre} x{l.cantidad}
                         {l.estado === 'en_preparacion' && (
@@ -203,6 +205,9 @@ export default function CocinaPage() {
                         )}
                         {l.estado === 'cancelado' && (
                           <span style={{ marginLeft: 6, fontSize: 11, color: '#E74C3C', fontWeight: 700 }}>[cancelado]</span>
+                        )}
+                        {l.estado === 'entregado' && (
+                          <span style={{ marginLeft: 6, fontSize: 11, color: '#95A5A6', fontWeight: 700 }}>[entregado]</span>
                         )}
                         {(l.estado === 'pendiente' || l.estado === 'en_preparacion') && (
                           <button
@@ -325,10 +330,10 @@ export default function CocinaPage() {
               </div>
               <h4 className="text-base font-bold mb-2 mt-2" style={{ color: 'var(--text)' }}>Productos y cantidades</h4>
               <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius)', padding: '0 12px', marginBottom: 16 }}>
-                {detailPedido.detalles.map(l => {
-                  const icon = l.producto?.tipo === 'plato' ? 'lunch_dining' : l.producto?.tipo === 'bebida' ? 'local_bar' : 'set_meal';
-                  const stColor = l.estado === 'pendiente' ? '#F39C12' : l.estado === 'en_preparacion' ? '#3498DB' : l.estado === 'listo' ? '#2ECC71' : '#E74C3C';
-                  const stLabel = l.estado === 'pendiente' ? 'Pendiente' : l.estado === 'en_preparacion' ? 'En preparación' : l.estado === 'listo' ? 'Listo' : 'Cancelado';
+                {detailPedido.detalles.filter(esPlato).map(l => {
+                  const icon = l.producto?.tipo === 'plato' ? 'lunch_dining' : 'local_bar';
+                  const stColor = l.estado === 'pendiente' ? '#F39C12' : l.estado === 'en_preparacion' ? '#3498DB' : l.estado === 'listo' ? '#2ECC71' : l.estado === 'entregado' ? '#95A5A6' : '#E74C3C';
+                  const stLabel = l.estado === 'pendiente' ? 'Pendiente' : l.estado === 'en_preparacion' ? 'En preparación' : l.estado === 'listo' ? 'Listo' : l.estado === 'entregado' ? 'Entregado' : 'Cancelado';
                   return (
                     <div key={l.id} className="detail-product-row">
                       <div className="detail-product-icon">
@@ -400,7 +405,7 @@ export default function CocinaPage() {
                   <div className="historial-item-info">
                     <div className="historial-item-title">Pedido #{h.id} - Mesa {h.mesa?.numero}</div>
                     <div className="historial-item-desc">
-                      {h.detalles.map(l => `${l.cantidad}x ${l.producto?.nombre}`).join(', ')}
+                      {h.detalles.filter(esPlato).map(l => `${l.cantidad}x ${l.producto?.nombre}`).join(', ')}
                     </div>
                   </div>
                   <div className="historial-item-time">
