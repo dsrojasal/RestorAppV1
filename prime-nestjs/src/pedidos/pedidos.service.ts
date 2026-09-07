@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, EntityManager } from 'typeorm';
 import { Pedido, PedidoEstado } from './entities/pedido.entity';
 import { DetallePedido, DetallePedidoEstado } from 'src/detalle-pedido/entities/detalle-pedido.entity';
-import { Producto } from 'src/productos/entities/producto.entity';
+import { Producto, TipoProducto } from 'src/productos/entities/producto.entity';
 import { Mesa, MesaEstado } from 'src/mesas/entities/mesa.entity';
 import { Factura, EstadoPago } from 'src/facturas/entities/factura.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
@@ -62,12 +62,13 @@ export class PedidosService {
     });
 
     const numeroMesa = (pedido.mesa as Mesa | undefined)?.numero ?? pedido.mesaId;
+    const tienePlatos = (pedido.detalles || []).some((d) => d.producto?.tipo === TipoProducto.PLATO);
     this.notificaciones?.crear({
       tipo: TipoNotificacion.PEDIDO,
       mensaje: `Nuevo pedido #${pedido.id} - Mesa ${numeroMesa}`,
       icono: 'receipt',
       clase: 'danger',
-      roles: [Role.ADMIN, Role.MESERO, Role.CHEF],
+      roles: tienePlatos ? [Role.ADMIN, Role.MESERO, Role.CHEF] : [Role.ADMIN, Role.MESERO],
       creadoPorId: pedido.usuarioId ?? undefined,
       refId: `pedido:${pedido.id}`,
     });
@@ -95,7 +96,7 @@ export class PedidosService {
       const transiciones: Record<DetallePedidoEstado, DetallePedidoEstado[]> = {
         [DetallePedidoEstado.PENDIENTE]: [DetallePedidoEstado.EN_PREPARACION, DetallePedidoEstado.CANCELADO],
         [DetallePedidoEstado.EN_PREPARACION]: [DetallePedidoEstado.LISTO, DetallePedidoEstado.CANCELADO],
-        [DetallePedidoEstado.LISTO]: [],
+        [DetallePedidoEstado.LISTO]: [DetallePedidoEstado.CANCELADO],
         [DetallePedidoEstado.ENTREGADO]: [],
         [DetallePedidoEstado.CANCELADO]: [],
       };
@@ -155,6 +156,13 @@ export class PedidosService {
       }
       linea.estado = DetallePedidoEstado.ENTREGADO;
       await manager.save(DetallePedido, linea);
+      const producto = await manager.findOne(Producto, { where: { id: linea.productoId } });
+      if (producto && producto.tipo !== TipoProducto.PLATO) {
+        const bajos = (await this.recetas?.consumir(manager, this.itemLinea(linea))) ?? [];
+        if (bajos.length > 0) {
+          this.notificaciones?.notificarStockBajo?.(bajos);
+        }
+      }
       await this.actualizarEstadoDerivado(manager, pedidoId);
       return this.findOneWithManager(manager, pedidoId);
     });
@@ -213,11 +221,23 @@ export class PedidosService {
         throw new BadRequestException('Este pedido ya fue cobrado');
       }
 
+      const productosIds = activas.map((l) => l.productoId);
+      const productosMap = new Map((await manager.find(Producto, { where: { id: In(productosIds) } })).map((p) => [p.id, p]));
+
+      const bajos: NonNullable<Awaited<ReturnType<RecetasService['consumir']>>> = [];
       for (const l of activas) {
         if (l.estado !== DetallePedidoEstado.ENTREGADO) {
+          const esPlato = productosMap.get(l.productoId)?.tipo === TipoProducto.PLATO;
+          if (!esPlato) {
+            const b = (await this.recetas?.consumir(manager, this.itemLinea(l))) ?? [];
+            bajos.push(...b);
+          }
           l.estado = DetallePedidoEstado.ENTREGADO;
           await manager.save(DetallePedido, l);
         }
+      }
+      if (bajos.length > 0) {
+        this.notificaciones?.notificarStockBajo?.(bajos);
       }
 
       if (dto.modo === 'propio') {
@@ -448,7 +468,7 @@ export class PedidosService {
         cantidad,
         precioUnitario,
         subtotal,
-        estado: DetallePedidoEstado.PENDIENTE,
+        estado: producto.tipo === TipoProducto.PLATO ? DetallePedidoEstado.PENDIENTE : DetallePedidoEstado.LISTO,
         observacion: linea.observacion,
       });
       creadas.push(await manager.save(DetallePedido, detalle));

@@ -1,15 +1,24 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ProductoIngrediente } from './entities/producto-ingrediente.entity';
 import { CreateProductoIngredienteDto } from './dto/create-producto-ingrediente.dto';
 import { UpdateProductoIngredienteDto } from './dto/update-producto-ingrediente.dto';
+import { Producto, TipoProducto } from 'src/productos/entities/producto.entity';
 
 @Injectable()
 export class ProductoIngredienteService {
-  constructor(@InjectRepository(ProductoIngrediente) private readonly repo: Repository<ProductoIngrediente>) {}
+  constructor(
+    @InjectRepository(ProductoIngrediente) private readonly repo: Repository<ProductoIngrediente>,
+    @InjectRepository(Producto) private readonly productRepo: Repository<Producto>,
+  ) {}
 
-  create(dto: CreateProductoIngredienteDto): Promise<ProductoIngrediente> {
+  async create(dto: CreateProductoIngredienteDto): Promise<ProductoIngrediente> {
+    const producto = await this.productRepo.findOne({ where: { id: dto.productoId } });
+    if (!producto) throw new NotFoundException(`Producto #${dto.productoId} no encontrado`);
+    if (producto.tipo !== TipoProducto.PLATO) {
+      throw new BadRequestException('Solo los platos manejan recetas; bebidas y contables controlan su propio stock');
+    }
     return this.repo.save(this.repo.create(dto));
   }
 
