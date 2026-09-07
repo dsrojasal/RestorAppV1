@@ -5,6 +5,7 @@ import { EntradaStock } from './entities/entrada-stock.entity';
 import { CreateEntradaStockDto } from './dto/create-entrada-stock.dto';
 import { Producto, TipoProducto } from 'src/productos/entities/producto.entity';
 import { Ingrediente } from 'src/ingredientes/entities/ingrediente.entity';
+import { MovimientoInventario, TipoMovimientoInventario } from 'src/recetas/entities/movimiento-inventario.entity';
 
 @Injectable()
 export class EntradaStockService {
@@ -61,7 +62,17 @@ export class EntradaStockService {
         stockDespues,
         usuarioId,
       });
-      return manager.save(entrada);
+      await manager.save(entrada);
+      await manager.save(
+        manager.create(MovimientoInventario, {
+          tipo: TipoMovimientoInventario.REABASTECIMIENTO,
+          cantidad: dto.cantidad,
+          ingredienteId,
+          productoId,
+          usuarioId,
+        }),
+      );
+      return entrada;
     });
   }
 

@@ -8,8 +8,11 @@ export class Ingrediente {
   @Column({ unique: true, length: 150 })
   nombre: string;
 
-  @Column({ default: 0 })
+  @Column({ type: 'decimal', precision: 14, scale: 3, default: 0 })
   stock: number;
+
+  @Column({ type: 'decimal', precision: 14, scale: 3, default: 0 })
+  stockReservado: number;
 
   @Column({ default: 0 })
   stockMinimo: number;

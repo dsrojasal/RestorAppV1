@@ -16,6 +16,7 @@ import { CobrarPedidoDto } from './dto/cobrar-pedido.dto';
 import { TransferirPedidoDto } from './dto/transferir-pedido.dto';
 import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
 import { TipoNotificacion } from 'src/notificaciones/entities/notificacion.entity';
+import { RecetasService } from 'src/recetas/recetas.service';
 
 @Injectable()
 export class PedidosService {
@@ -23,6 +24,7 @@ export class PedidosService {
     @InjectRepository(Pedido) private readonly repo: Repository<Pedido>,
     private readonly dataSource: DataSource,
     private readonly notificaciones?: NotificacionesService,
+    private readonly recetas?: RecetasService,
   ) {}
 
   async create(dto: CreatePedidoDto): Promise<Pedido> {
@@ -92,7 +94,7 @@ export class PedidosService {
 
       const transiciones: Record<DetallePedidoEstado, DetallePedidoEstado[]> = {
         [DetallePedidoEstado.PENDIENTE]: [DetallePedidoEstado.EN_PREPARACION, DetallePedidoEstado.CANCELADO],
-        [DetallePedidoEstado.EN_PREPARACION]: [DetallePedidoEstado.LISTO],
+        [DetallePedidoEstado.EN_PREPARACION]: [DetallePedidoEstado.LISTO, DetallePedidoEstado.CANCELADO],
         [DetallePedidoEstado.LISTO]: [],
         [DetallePedidoEstado.ENTREGADO]: [],
         [DetallePedidoEstado.CANCELADO]: [],
@@ -105,6 +107,12 @@ export class PedidosService {
 
       linea.estado = estado;
       await manager.save(DetallePedido, linea);
+
+      if (estado === DetallePedidoEstado.LISTO) {
+        await this.marcarListo(manager, linea);
+      } else if (estado === DetallePedidoEstado.CANCELADO) {
+        await this.recetas?.liberarReserva(manager, this.itemLinea(linea));
+      }
       await this.actualizarEstadoDerivado(manager, pedidoId);
 
       if (estado === DetallePedidoEstado.LISTO) {
@@ -125,6 +133,13 @@ export class PedidosService {
       }
       return linea;
     });
+  }
+
+  private async marcarListo(manager: EntityManager, linea: DetallePedido): Promise<void> {
+    const bajos = (await this.recetas?.consumir(manager, this.itemLinea(linea))) ?? [];
+    if (bajos.length > 0) {
+      this.notificaciones?.notificarStockBajo?.(bajos);
+    }
   }
 
   async entregarLinea(pedidoId: number, lineaId: number, userId?: number, userRol?: string): Promise<Pedido> {
@@ -158,8 +173,17 @@ export class PedidosService {
       }
       if (dto.cantidad !== undefined) {
         if (dto.cantidad < 1) throw new BadRequestException('La cantidad debe ser al menos 1');
+        const cantidadAnterior = Number(linea.cantidad);
         linea.cantidad = dto.cantidad;
         linea.subtotal = Number((Number(linea.cantidad) * Number(linea.precioUnitario)).toFixed(2));
+        if (dto.cantidad !== cantidadAnterior) {
+          await this.recetas?.ajustarReserva(manager, {
+            lineaId,
+            productoId: linea.productoId,
+            cantidadAnterior,
+            cantidadNueva: dto.cantidad,
+          });
+        }
       }
       if (dto.observacion !== undefined) {
         linea.observacion = dto.observacion ?? null;
@@ -296,6 +320,7 @@ export class PedidosService {
       if (linea.estado !== DetallePedidoEstado.PENDIENTE) {
         throw new BadRequestException('Solo se pueden quitar ítems en estado pendiente');
       }
+      await this.recetas?.liberarReserva(manager, this.itemLinea(linea));
       await manager.delete(DetallePedido, lineaId);
       await this.recalcularTotal(manager, pedidoId);
       await this.actualizarEstadoDerivado(manager, pedidoId);
@@ -322,17 +347,36 @@ export class PedidosService {
     const entity = await this.findOne(id);
     if (!entity) throw new NotFoundException(`Pedido #${id} no encontrado`);
     this.validarDueño(entity, userId, userRol);
-    Object.assign(entity, dto);
-    if (dto.lineas && dto.lineas.length > 0) {
-      await this.dataSource.transaction(async (manager) => {
+
+    const { lineas, ...rest } = dto;
+    await this.dataSource.transaction(async (manager) => {
+      if (lineas && lineas.length > 0) {
         await this.validarEditable(manager, id);
+        const actuales = await manager.find(DetallePedido, { where: { pedidoId: id } });
+        await this.liberarLineasPendientes(manager, actuales);
         await manager.delete(DetallePedido, { pedidoId: id });
-        await this.agregarLineas(manager, id, dto.lineas!);
+        await this.agregarLineas(manager, id, lineas);
         await this.recalcularTotal(manager, id);
         await this.actualizarEstadoDerivado(manager, id);
-      });
-    }
+      }
+      if (Object.keys(rest).length > 0) {
+        if (rest.estado === PedidoEstado.CANCELADO && entity.estado !== PedidoEstado.CANCELADO) {
+          const actuales = await manager.find(DetallePedido, { where: { pedidoId: id } });
+          await this.liberarLineasPendientes(manager, actuales);
+        }
+        await manager.update(Pedido, id, { ...rest });
+      }
+    });
     return this.findOne(id) as Promise<Pedido>;
+  }
+
+  private async liberarLineasPendientes(manager: EntityManager, lineas: DetallePedido[]): Promise<void> {
+    const aLiberar = lineas.filter((l) => l.estado === DetallePedidoEstado.PENDIENTE || l.estado === DetallePedidoEstado.EN_PREPARACION);
+    if (aLiberar.length === 0) return;
+    await this.recetas?.liberarLote(
+      manager,
+      aLiberar.map((l) => this.itemLinea(l)),
+    );
   }
 
   async remove(id: number, userId?: number, userRol?: string): Promise<void> {
@@ -347,6 +391,8 @@ export class PedidosService {
       if (factura) {
         await manager.delete(Factura, { pedidoId: id });
       }
+      const lineasActuales = await manager.find(DetallePedido, { where: { pedidoId: id } });
+      await this.liberarLineasPendientes(manager, lineasActuales);
       await manager.delete(DetallePedido, { pedidoId: id });
       await manager.delete(Pedido, id);
       await manager.update(Mesa, pedido.mesaId, { estado: MesaEstado.LIBRE });
@@ -389,6 +435,7 @@ export class PedidosService {
     const productos = await manager.find(Producto, { where: { id: In(productoIds) } });
     const map = new Map(productos.map((p) => [p.id, p]));
 
+    const creadas: DetallePedido[] = [];
     for (const linea of lineas) {
       const producto = map.get(linea.productoId);
       if (!producto) throw new NotFoundException(`Producto #${linea.productoId} no encontrado`);
@@ -404,8 +451,17 @@ export class PedidosService {
         estado: DetallePedidoEstado.PENDIENTE,
         observacion: linea.observacion,
       });
-      await manager.save(DetallePedido, detalle);
+      creadas.push(await manager.save(DetallePedido, detalle));
     }
+
+    await this.recetas?.validarYReservar(
+      manager,
+      creadas.map((d) => this.itemLinea(d)),
+    );
+  }
+
+  private itemLinea(d: DetallePedido): { lineaId: number; productoId: number; cantidad: number } {
+    return { lineaId: d.id, productoId: d.productoId, cantidad: Number(d.cantidad) };
   }
 
   private async recalcularTotal(manager: EntityManager, pedidoId: number) {

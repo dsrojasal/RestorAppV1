@@ -10,9 +10,10 @@ import { Factura } from 'src/facturas/entities/factura.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
 import { NotificacionesModule } from 'src/notificaciones/notificaciones.module';
+import { RecetasModule } from 'src/recetas/recetas.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Pedido, DetallePedido, Producto, Mesa, Factura, TipoPago, Usuario]), NotificacionesModule],
+  imports: [TypeOrmModule.forFeature([Pedido, DetallePedido, Producto, Mesa, Factura, TipoPago, Usuario]), NotificacionesModule, RecetasModule],
   controllers: [PedidosController],
   providers: [PedidosService],
   exports: [PedidosService],

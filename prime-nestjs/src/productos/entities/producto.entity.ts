@@ -22,8 +22,11 @@ export class Producto {
   @Column({ type: 'enum', enum: TipoProducto })
   tipo: TipoProducto;
 
-  @Column({ default: 0 })
+  @Column({ type: 'decimal', precision: 14, scale: 3, default: 0 })
   stock: number;
+
+  @Column({ type: 'decimal', precision: 14, scale: 3, default: 0 })
+  stockReservado: number;
 
   @Column({ default: 0 })
   stockMinimo: number;

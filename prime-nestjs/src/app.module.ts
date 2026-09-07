@@ -30,6 +30,7 @@ import { JwtAuthGuard } from './auth/strategy/jwt-auth.guard';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RealtimeInterceptor } from './realtime/realtime.interceptor';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
+import { RecetasModule } from './recetas/recetas.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { NotificacionesModule } from './notificaciones/notificaciones.module';
     ReservasModule,
     SeedModule,
     NotificacionesModule,
+    RecetasModule,
     RealtimeModule,
   ],
   controllers: [AppController],

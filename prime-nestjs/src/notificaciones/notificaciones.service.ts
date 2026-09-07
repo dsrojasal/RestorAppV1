@@ -10,9 +10,13 @@ import { RealtimeEvents } from 'src/realtime/realtime.events';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
 import { Ingrediente } from 'src/ingredientes/entities/ingrediente.entity';
 import { Producto, TipoProducto } from 'src/productos/entities/producto.entity';
+import { DetallePedido, DetallePedidoEstado } from 'src/detalle-pedido/entities/detalle-pedido.entity';
+import { Pedido, PedidoEstado } from 'src/pedidos/entities/pedido.entity';
 import { Role } from 'src/common/enums/role.enum';
 
 const INVENTORY_CRON = process.env.NOTIF_INVENTORY_CRON || '*/5 * * * *';
+const ABANDONADO_CRON = process.env.NOTIF_ABANDONADO_CRON || '0 */30 * * * *';
+const ABANDONADO_HORAS = Number(process.env.NOTIF_ABANDONADO_HORAS || 3);
 
 const ROL_COLUMN: Record<string, string> = {
   Administrador: 'n.paraAdministrador = TRUE',
@@ -51,6 +55,7 @@ export class NotificacionesService {
     @InjectRepository(Usuario) private readonly usuarioRepo: Repository<Usuario>,
     @InjectRepository(Ingrediente) private readonly ingredienteRepo: Repository<Ingrediente>,
     @InjectRepository(Producto) private readonly productoRepo: Repository<Producto>,
+    @InjectRepository(DetallePedido) private readonly detalleRepo: Repository<DetallePedido>,
     private readonly emitter: EventEmitter2,
   ) {}
 
@@ -126,23 +131,66 @@ export class NotificacionesService {
       items.push({ refId: `p:${p.id}`, nombre: p.nombre, stock: Number(p.stock) || 0, stockMinimo: Number(p.stockMinimo) || 0, unidad: 'uds' });
     }
 
+    const aNotificar: typeof items = [];
     for (const item of items) {
       const bajo = item.stockMinimo > 0 && item.stock <= item.stockMinimo;
       const pendientes = await this.repo.count({ where: { tipo: TipoNotificacion.INVENTARIO, refId: item.refId } });
       if (bajo) {
-        if (pendientes === 0) {
-          await this.crear({
-            tipo: TipoNotificacion.INVENTARIO,
-            mensaje: `Inventario bajo: ${item.nombre} (${item.stock}${item.unidad} restantes)`,
-            icono: 'inventory_2',
-            clase: 'warning',
-            roles: [Role.ADMIN, Role.CHEF],
-            refId: item.refId,
-          });
-        }
+        if (pendientes === 0) aNotificar.push(item);
       } else if (pendientes > 0) {
         await this.repo.delete({ tipo: TipoNotificacion.INVENTARIO, refId: item.refId });
       }
+    }
+    await this.notificarStockBajo(aNotificar);
+  }
+
+  async notificarStockBajo(items: { refId: string; nombre: string; stock: number; unidad: string }[]): Promise<void> {
+    for (const item of items) {
+      const pendientes = await this.repo.count({ where: { tipo: TipoNotificacion.INVENTARIO, refId: item.refId } });
+      if (pendientes > 0) continue;
+      await this.crear({
+        tipo: TipoNotificacion.INVENTARIO,
+        mensaje:
+          item.stock <= 0
+            ? `Agotado: ${item.nombre}${item.unidad ? ` (sin ${item.unidad})` : ''}`
+            : `Inventario bajo: ${item.nombre} (${item.stock}${item.unidad} restantes)`,
+        icono: 'inventory_2',
+        clase: 'warning',
+        roles: [Role.ADMIN, Role.CHEF],
+        refId: item.refId,
+      });
+    }
+  }
+
+  @Cron(ABANDONADO_CRON)
+  async cronPedidosAbandonados(): Promise<void> {
+    const desde = new Date(Date.now() - ABANDONADO_HORAS * 3600 * 1000);
+    const rows = await this.detalleRepo
+      .createQueryBuilder('d')
+      .innerJoin(Pedido, 'pedido', 'pedido.id = d.pedidoId')
+      .select('d.pedidoId', 'pedidoId')
+      .addSelect('COUNT(*)', 'cantidad')
+      .where('d.estado IN (:...estados)', {
+        estados: [DetallePedidoEstado.PENDIENTE, DetallePedidoEstado.EN_PREPARACION],
+      })
+      .andWhere('d.updatedAt <= :desde', { desde })
+      .andWhere('pedido.estado <> :cancelado', { cancelado: PedidoEstado.CANCELADO })
+      .groupBy('d.pedidoId')
+      .getRawMany<{ pedidoId: string; cantidad: string }>();
+
+    for (const row of rows) {
+      const refId = `abandonado:${row.pedidoId}`;
+      const pendientes = await this.repo.count({ where: { tipo: TipoNotificacion.INVENTARIO, refId } });
+      if (pendientes > 0) continue;
+      const horas = `${ABANDONADO_HORAS} h`;
+      await this.crear({
+        tipo: TipoNotificacion.INVENTARIO,
+        mensaje: `Pedido #${row.pedidoId}: ${row.cantidad} ítem(s) sin actividad por más de ${horas}. Cancela y libera su reserva si corresponde`,
+        icono: 'hourglass_empty',
+        clase: 'warning',
+        roles: [Role.ADMIN, Role.CHEF],
+        refId,
+      });
     }
   }
 
