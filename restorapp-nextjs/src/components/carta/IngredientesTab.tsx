@@ -4,16 +4,16 @@ import { useState, useEffect, useRef } from 'react';
 import ModalSheet from '@/components/ModalSheet';
 import ContextMenu, { ContextMenuRef } from '@/components/ContextMenu';
 import { getAuthHeaders, handleApiError } from '@/lib/api';
+import { fmtCant, fmtCantCon, parsearValor, UNIDADES_LIST } from '@/lib/unidades';
 
 interface Ingrediente {
   id: number;
   nombre: string;
   stock: number;
   stockMinimo: number;
+  stockMinimoUnidad?: string | null;
   unidad: string;
 }
-
-const UNIDADES = ['kg', 'g', 'und', 'ml', 'lt', 'paquete', 'saco'];
 
 export default function IngredientesTab() {
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([]);
@@ -21,6 +21,8 @@ export default function IngredientesTab() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Ingrediente | null>(null);
+  const [unidadSel, setUnidadSel] = useState('und');
+  const [error, setError] = useState('');
   const menuRef = useRef<ContextMenuRef>(null);
 
   const load = async () => {
@@ -52,25 +54,45 @@ export default function IngredientesTab() {
 
   function openCreate() {
     setEditing(null);
+    setUnidadSel('und');
+    setError('');
     setModalOpen(true);
   }
 
   function openEdit(i: Ingrediente) {
     setEditing(i);
+    setUnidadSel(i.unidad || 'und');
+    setError('');
     setModalOpen(true);
   }
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
     const nombre = (document.getElementById('i-nombre') as HTMLInputElement).value.trim();
-    const stockMinimo = parseInt((document.getElementById('i-stock-min') as HTMLInputElement).value || '0', 10) || 0;
-    const unidad = (document.getElementById('i-unidad') as HTMLSelectElement).value;
-    if (!nombre || !unidad) return;
+    setError('');
+    if (!nombre) return;
 
-    const body: Record<string, unknown> = { nombre, stockMinimo, unidad };
+    const baseUnidad = unidadSel;
+    const stockInput = (document.getElementById('i-stock') as HTMLInputElement | null)?.value.trim() ?? '';
+    const minInput = (document.getElementById('i-stock-min') as HTMLInputElement).value.trim();
+
+    const body: Record<string, unknown> = { nombre, unidad: baseUnidad };
+
+    const parseMin = parsearValor(minInput || '0', baseUnidad);
+    if (!parseMin.ok) {
+      setError(`Stock mínimo: ${parseMin.error}`);
+      return;
+    }
+    body.stockMinimo = parseMin.valorBase ?? 0;
+    body.stockMinimoUnidad = (parseMin.valorBase ?? 0) > 0 ? parseMin.unidad : null;
+
     if (!editing) {
-      const stock = parseInt((document.getElementById('i-stock') as HTMLInputElement).value || '0', 10) || 0;
-      body.stock = stock;
+      const parseStock = parsearValor(stockInput === '' ? '0' : stockInput, baseUnidad);
+      if (!parseStock.ok) {
+        setError(`Stock inicial: ${parseStock.error}`);
+        return;
+      }
+      body.stock = parseStock.valorBase ?? 0;
     }
 
     try {
@@ -90,7 +112,7 @@ export default function IngredientesTab() {
       }
       if (!res.ok) {
         const err = await handleApiError(res);
-        alert(err.message || 'No se pudo guardar el ingrediente');
+        setError(err.message || 'No se pudo guardar el ingrediente');
         return;
       }
       setModalOpen(false);
@@ -176,7 +198,10 @@ export default function IngredientesTab() {
                   <span className="user-name">{i.nombre}</span>
                   <p className="user-email">{i.unidad}</p>
                   <div className="user-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                    <span className="status-text" style={{ color: 'var(--text-muted)' }}>Stock: <b>{i.stock}</b> {i.unidad}{i.stockMinimo > 0 ? ` · mín ${i.stockMinimo}` : ''}</span>
+                    <span className="status-text" style={{ color: 'var(--text-muted)' }}>
+                      Stock: <b>{fmtCant(i.stock, i.unidad)}</b>
+                      {i.stockMinimo > 0 ? ` · mín ${fmtCantCon(i.stockMinimo, i.unidad, i.stockMinimoUnidad)}` : ''}
+                    </span>
                     {bajo && (
                       <span className="role-badge chef" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span> Stock bajo
@@ -199,34 +224,40 @@ export default function IngredientesTab() {
 
       <ModalSheet isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Editar Ingrediente' : 'Nuevo Ingrediente'}>
         <form onSubmit={guardar}>
+          {error && <p style={{ color: '#BA1A1A', fontSize: 13, marginBottom: 12 }}>{error}</p>}
           <div className="form-field">
             <label htmlFor="i-nombre">Nombre</label>
             <input id="i-nombre" placeholder="Ej. Carne de res, Tomate, Harina" type="text" defaultValue={editing?.nombre || ''} required />
+          </div>
+          <div className="form-field">
+            <label htmlFor="i-unidad">Unidad de medida</label>
+            <select id="i-unidad" value={unidadSel} onChange={(e) => setUnidadSel(e.target.value)}>
+              {UNIDADES_LIST.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
           </div>
           <div className="form-row">
             <div className="form-field">
               <label htmlFor="i-stock">{editing ? 'Stock' : 'Stock inicial'}</label>
               {editing ? (
                 <>
-                  <input id="i-stock" type="text" defaultValue={editing.stock ?? 0} readOnly style={{ background: 'var(--bg)', color: 'var(--text-secondary)' }} />
+                  <input id="i-stock" type="text" defaultValue={fmtCant(editing.stock ?? 0, editing.unidad || 'und')} readOnly style={{ background: 'var(--bg)', color: 'var(--text-secondary)' }} />
                   <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Se gestiona desde Inventario (Registrar Entrada).</p>
                 </>
               ) : (
-                <input id="i-stock" placeholder="Ej. 100" type="number" min="0" defaultValue={0} />
+                <input id="i-stock" placeholder={`Ej. 100 (${unidadSel}) — también 500 g o 10 lb`} type="text" defaultValue="0" />
               )}
-            </div>
-            <div className="form-field">
-              <label htmlFor="i-stock-min">Stock mínimo (alerta)</label>
-              <input id="i-stock-min" placeholder="Ej. 20" type="number" min="0" defaultValue={editing?.stockMinimo ?? 0} />
             </div>
           </div>
           <div className="form-field">
-            <label htmlFor="i-unidad">Unidad de medida</label>
-            <select id="i-unidad" defaultValue={editing?.unidad || 'und'}>
-              {UNIDADES.map((u) => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-            </select>
+            <label htmlFor="i-stock-min">Stock mínimo (alerta)</label>
+            <input id="i-stock-min" placeholder={`Ej. 10 (${unidadSel}) — también 500 g o 10 lb`} type="text" defaultValue={
+              editing?.stockMinimo ? fmtCantCon(editing.stockMinimo, editing.unidad || 'und', editing.stockMinimoUnidad) : '0'
+            } />
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              Escribe solo el número (asume {unidadSel}) o con unidad: 10 lb, 500 g, 0.5 {unidadSel}.
+            </p>
           </div>
           <div className="modal-actions">
             <button className="btn-cancel" type="button" onClick={() => setModalOpen(false)}>Cancelar</button>

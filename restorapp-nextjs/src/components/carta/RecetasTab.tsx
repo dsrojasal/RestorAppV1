@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import ModalSheet from '@/components/ModalSheet';
 import { getAuthHeaders, handleApiError } from '@/lib/api';
+import { fmtCant, parsearValor } from '@/lib/unidades';
 
 interface Ingrediente {
   id: number;
@@ -76,21 +77,23 @@ export default function RecetasTab() {
   const usadoIds = new Set(recetaActual.map((r) => r.ingredienteId));
   const disponibles = ingredientes.filter((i) => !usadoIds.has(i.id));
 
-  const fmtCant = (v: number | string) => {
-    const n = typeof v === 'string' ? parseFloat(v) : v;
-    return isNaN(n) ? '0' : String(n);
-  };
-
   async function agregar(e: React.FormEvent) {
     e.preventDefault();
     const ingredienteId = parseInt((document.getElementById('r-ingrediente') as HTMLSelectElement).value, 10);
-    const cantidad = parseFloat((document.getElementById('r-cantidad') as HTMLInputElement).value || '0') || 0;
+    const ing = ingredientes.find((i) => i.id === ingredienteId);
+    const baseUnidad = ing?.unidad || 'und';
+    const parseo = parsearValor((document.getElementById('r-cantidad') as HTMLInputElement).value, baseUnidad);
     if (!ingredienteId) {
       alert('Selecciona un ingrediente');
       return;
     }
+    if (!parseo.ok) {
+      setError(parseo.error || 'Cantidad inválida');
+      return;
+    }
+    const cantidad = parseo.valorBase ?? 0;
     if (cantidad <= 0) {
-      alert('La cantidad debe ser mayor a 0');
+      setError('La cantidad debe ser mayor a 0');
       return;
     }
     try {
@@ -181,7 +184,7 @@ export default function RecetasTab() {
                       <span className="text-sm font-medium">{r.ingrediente?.nombre || `Ingrediente #${r.ingredienteId}`}</span>
                     </span>
                     <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {fmtCant(r.cantidad)} {r.ingrediente?.unidad || ''}
+                      {fmtCant(r.cantidad, r.ingrediente?.unidad || 'und')}
                     </span>
                     <button title="Quitar" onClick={() => quitar(r)} style={{ cursor: 'pointer', border: 'none', background: 'transparent', marginLeft: 8 }}>
                       <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--danger, #BA1A1A)' }}>remove_circle</span>
@@ -213,7 +216,8 @@ export default function RecetasTab() {
           </div>
           <div className="form-field">
             <label htmlFor="r-cantidad">Cantidad por plato</label>
-            <input id="r-cantidad" placeholder="Ej. 0.2 para 200 gr, 1 para una unidad" type="number" min="0" step="0.001" defaultValue="1" required />
+            <input id="r-cantidad" placeholder="Ej. 150 g, 0.5, 1, 10 lb" type="text" min="0" defaultValue="1" required />
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Número solo (en la unidad del ingrediente) o con unidad: 150 g, 0.5 kg, 10 lb.</p>
           </div>
           <div className="modal-actions">
             <button className="btn-cancel" type="button" onClick={() => setAddOpen(false)}>Cancelar</button>

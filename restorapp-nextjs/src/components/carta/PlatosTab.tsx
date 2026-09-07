@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import ModalSheet from '@/components/ModalSheet';
 import ContextMenu, { ContextMenuRef } from '@/components/ContextMenu';
 import { getAuthHeaders, handleApiError } from '@/lib/api';
+import { fmtCant, fmtCantCon, fmtCOP } from '@/lib/unidades';
 
 interface Categoria {
   id: number;
@@ -18,6 +19,7 @@ interface Producto {
   tipo: string;
   stock: number;
   stockMinimo: number;
+  stockMinimoUnidad?: string | null;
   isActive: boolean;
   categoriaId: number;
   categoria?: { id: number; nombre: string };
@@ -299,7 +301,7 @@ export default function PlatosTab() {
                       {p.categoria && <span className="role-badge cajero">{p.categoria.nombre}</span>}
                     </span>
                   </div>
-                  <p className="user-email">${Number(p.precio).toFixed(2)}</p>
+                  <p className="user-email">{fmtCOP(p.precio)}</p>
                   <div className="user-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                     <span className="status-text" style={{ color: p.isActive ? 'var(--success)' : 'var(--text-muted)' }}>
                       <span className={`status-dot ${p.isActive ? 'online' : 'offline'}`} /> {p.isActive ? 'Disponible' : 'Agotado'}
@@ -309,7 +311,7 @@ export default function PlatosTab() {
                         <span className="material-symbols-outlined" style={{ fontSize: 13 }}>restaurant</span> Se prepara con receta
                       </span>
                     ) : (
-                      <span className="status-text" style={{ color: 'var(--text-muted)' }}>Stock: <b>{p.stock}</b>{p.stockMinimo > 0 ? ` (mín ${p.stockMinimo})` : ''}</span>
+                      <span className="status-text" style={{ color: 'var(--text-muted)' }}>Stock: <b>{fmtCant(p.stock, 'und')}</b>{p.stockMinimo > 0 ? ` (mín ${fmtCantCon(p.stockMinimo, 'und', p.stockMinimoUnidad)})` : ''}</span>
                     )}
                     {bajo && (
                       <span className="role-badge chef" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import ModalSheet from '@/components/ModalSheet';
 import ContextMenu, { ContextMenuRef } from '@/components/ContextMenu';
 import { getAuthHeaders, handleApiError } from '@/lib/api';
+import { fmtCant, fmtCantCon, parsearValor } from '@/lib/unidades';
 
 interface Producto {
   id: number;
@@ -11,6 +12,7 @@ interface Producto {
   tipo: string;
   stock: number;
   stockMinimo: number;
+  stockMinimoUnidad?: string | null;
   isActive: boolean;
 }
 
@@ -19,6 +21,7 @@ interface Ingrediente {
   nombre: string;
   stock: number;
   stockMinimo: number;
+  stockMinimoUnidad?: string | null;
   unidad: string;
 }
 
@@ -28,6 +31,8 @@ interface EntradaStock {
   cantidad: number;
   stockDespues: number;
   fecha: string;
+  productoId?: number | null;
+  ingredienteId?: number | null;
   producto?: { id: number; nombre: string } | null;
   ingrediente?: { id: number; nombre: string } | null;
   usuario?: { id: number; name: string } | null;
@@ -139,6 +144,8 @@ export default function InventarioPage() {
   const platos = productos.filter((p) => p.tipo === 'plato');
   const esBajo = (stock: number, stockMinimo: number) => stock === 0 || (stockMinimo > 0 && stock <= stockMinimo);
   const enStockBajo = [...ingredientes.filter((i) => esBajo(i.stock, i.stockMinimo)), ...contables.filter((p) => esBajo(p.stock, p.stockMinimo))].length;
+  const unidadDeTarget = (t: Target): string =>
+    t.tipo === 'ingrediente' ? ingredientes.find((x) => x.id === t.id)?.unidad ?? 'und' : 'und';
 
   const query = search.toLowerCase();
   const filteredIns = ingredientes.filter((i) => !query || i.nombre.toLowerCase().includes(query));
@@ -222,9 +229,16 @@ export default function InventarioPage() {
   async function registrarEntrada(e: React.FormEvent) {
     e.preventDefault();
     if (!entradaTarget) return;
-    const cantidad = parseInt((document.getElementById('entrada-cantidad') as HTMLInputElement).value || '0', 10) || 0;
+    setError('');
+    const base = unidadDeTarget(entradaTarget);
+    const parseo = parsearValor((document.getElementById('entrada-cantidad') as HTMLInputElement).value, base);
+    if (!parseo.ok) {
+      setError(`Cantidad: ${parseo.error}`);
+      return;
+    }
+    const cantidad = parseo.valorBase ?? 0;
     if (cantidad <= 0) {
-      alert('La cantidad debe ser mayor a 0');
+      setError('La cantidad debe ser mayor a 0');
       return;
     }
     const body =
@@ -343,7 +357,10 @@ export default function InventarioPage() {
                         <span className="user-name">{i.nombre}</span>
                         <p className="user-email">{unidades}</p>
                         <div className="user-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                          <span className="status-text" style={{ color: 'var(--text-muted)' }}>Stock: <b>{i.stock}</b> {unidades}{i.stockMinimo > 0 ? ` · mín ${i.stockMinimo}` : ''}</span>
+                          <span className="status-text" style={{ color: 'var(--text-muted)' }}>
+                            Stock: <b>{fmtCant(i.stock, unidades)}</b>
+                            {i.stockMinimo > 0 ? ` · mín ${fmtCantCon(i.stockMinimo, unidades, i.stockMinimoUnidad)}` : ''}
+                          </span>
                           {bajo ? (
                             <span className="role-badge chef" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                               <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span> Stock bajo
@@ -385,7 +402,10 @@ export default function InventarioPage() {
                         <span className="user-name">{p.nombre}</span>
                         <p className="user-email">{p.tipo === 'bebida' ? 'Bebida' : p.tipo === 'postre' ? 'Postre / Helado' : 'Otro'}</p>
                         <div className="user-meta" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                          <span className="status-text" style={{ color: 'var(--text-muted)' }}>Stock: <b>{p.stock}</b> und{p.stockMinimo > 0 ? ` · mín ${p.stockMinimo}` : ''}</span>
+                          <span className="status-text" style={{ color: 'var(--text-muted)' }}>
+                            Stock: <b>{fmtCant(p.stock, 'und')}</b>
+                            {p.stockMinimo > 0 ? ` · mín ${fmtCantCon(p.stockMinimo, 'und', p.stockMinimoUnidad)}` : ''}
+                          </span>
                           {bajo ? (
                             <span className="role-badge chef" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                               <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span> Stock bajo
@@ -478,16 +498,22 @@ export default function InventarioPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredEnt.map((e) => (
-                      <tr key={e.id}>
-                        <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatFecha(e.fecha)}</td>
-                        <td>{e.producto?.nombre || e.ingrediente?.nombre || '-'}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{e.stockAntes}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--success)' }}>+{e.cantidad}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary-dark)' }}>{e.stockDespues}</td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{e.usuario?.name || '-'}</td>
-                      </tr>
-                    ))}
+                    {filteredEnt.map((e) => {
+                      const unidadE =
+                        e.ingredienteId != null
+                          ? ingredientes.find((x) => x.id === e.ingredienteId)?.unidad ?? 'und'
+                          : 'und';
+                      return (
+                        <tr key={e.id}>
+                          <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatFecha(e.fecha)}</td>
+                          <td>{e.producto?.nombre || e.ingrediente?.nombre || '-'}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{fmtCant(e.stockAntes, unidadE)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--success)' }}>+{fmtCant(e.cantidad, unidadE)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary-dark)' }}>{fmtCant(e.stockDespues, unidadE)}</td>
+                          <td style={{ color: 'var(--text-secondary)' }}>{e.usuario?.name || '-'}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -509,11 +535,16 @@ export default function InventarioPage() {
           </div>
           <div className="form-field">
             <label>Stock actual</label>
-            <input type="text" value={entradaTarget ? `${entradaTarget.stock} und (en vivo)` : ''} readOnly style={{ background: 'var(--bg)', color: 'var(--text-secondary)' }} />
+            <input
+              type="text"
+              value={entradaTarget ? `${fmtCant(entradaTarget.stock, unidadDeTarget(entradaTarget))} (en vivo)` : ''}
+              readOnly
+              style={{ background: 'var(--bg)', color: 'var(--text-secondary)' }}
+            />
           </div>
           <div className="form-field">
             <label htmlFor="entrada-cantidad">Cantidad que llegó</label>
-            <input id="entrada-cantidad" placeholder="Ej. 40" type="number" min="1" step="1" autoFocus required />
+            <input id="entrada-cantidad" placeholder={`Ej. 5 (${entradaTarget ? unidadDeTarget(entradaTarget) : 'und'}) — también 500 g o 0.5`} type="text" autoFocus required />
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
             El sistema calcula y guarda la fecha, el stock anterior y el stock resultante automáticamente.
@@ -602,7 +633,7 @@ export default function InventarioPage() {
                       <div key={idx} className="order-item-row" style={{ padding: '8px 0' }}>
                         <span style={{ flex: 1, fontSize: 14, color: 'var(--text)' }}>{i.nombre}</span>
                         <span className="font-bold" style={{ color: 'var(--primary)', fontSize: 14, whiteSpace: 'nowrap' }}>
-                          {i.cantidad} {i.unidad}
+                          {fmtCant(i.cantidad, i.unidad)}
                         </span>
                       </div>
                     ))}
