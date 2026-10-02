@@ -22,11 +22,7 @@ describe('FacturasService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     const moduleRef = await Test.createTestingModule({
-      providers: [
-        FacturasService,
-        { provide: getRepositoryToken(Factura), useValue: repo },
-        { provide: DataSource, useValue: dataSource },
-      ],
+      providers: [FacturasService, { provide: getRepositoryToken(Factura), useValue: repo }, { provide: DataSource, useValue: dataSource }],
     }).compile();
     service = moduleRef.get(FacturasService);
   });
@@ -34,8 +30,7 @@ describe('FacturasService', () => {
   it('pagar cobra la factura, cierra las líneas y libera la mesa', async () => {
     const manager = {
       findOne: jest.fn(async (Entity: any) => {
-        if (Entity === Factura)
-          return { id: 1, pedidoId: 10, total: 100, estadoPago: EstadoPago.PENDIENTE };
+        if (Entity === Factura) return { id: 1, pedidoId: 10, total: 100, estadoPago: EstadoPago.PENDIENTE };
         if (Entity === TipoPago) return { id: 3, nombre: 'Tarjeta crédito' };
         if (Entity === Pedido) return { id: 10, mesaId: 2 };
         return null;

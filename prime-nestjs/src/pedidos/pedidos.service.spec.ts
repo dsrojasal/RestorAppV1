@@ -67,10 +67,7 @@ describe('PedidosService', () => {
     expect(result.factura.total).toBe(100);
     expect(result.factura.creadoPorId).toBe(14);
     expect(result.factura.id).toBeUndefined(); // creada por manager.create/save
-    expect(manager.save).toHaveBeenCalledWith(
-      DetallePedido,
-      expect.objectContaining({ estado: DetallePedidoEstado.ENTREGADO }),
-    );
+    expect(manager.save).toHaveBeenCalledWith(DetallePedido, expect.objectContaining({ estado: DetallePedidoEstado.ENTREGADO }));
     expect(manager.update).toHaveBeenCalledWith(Pedido, 1, { estado: PedidoEstado.ENTREGADO });
   });
 

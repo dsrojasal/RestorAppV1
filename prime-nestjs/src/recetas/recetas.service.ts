@@ -230,13 +230,7 @@ export class RecetasService {
   ): Promise<RecursoReq[]> {
     const ing = new Map<number, RecursoReq>();
     const prod = new Map<number, RecursoReq>();
-    const push = (
-      map: Map<number, RecursoReq>,
-      tipo: 'ingrediente' | 'producto',
-      id: number,
-      cantidad: Decimal,
-      lineaId: number,
-    ) => {
+    const push = (map: Map<number, RecursoReq>, tipo: 'ingrediente' | 'producto', id: number, cantidad: Decimal, lineaId: number) => {
       const req = map.get(id) ?? { tipo, id, total: new Decimal(0), items: [] };
       req.total = this.redondear(req.total.add(cantidad));
       req.items.push({ cantidad, lineaId });
@@ -269,9 +263,7 @@ export class RecetasService {
       if (disp.lt(r.total)) {
         const nombre = this.nombreDe(bloqueados, r);
         const unidad = this.unidadDe(bloqueados, r);
-        faltantes.push(
-          `${nombre}: se necesitan ${formatearCantidad(r.total, unidad)} y hay ${formatearCantidad(disp, unidad)} disponibles`,
-        );
+        faltantes.push(`${nombre}: se necesitan ${formatearCantidad(r.total, unidad)} y hay ${formatearCantidad(disp, unidad)} disponibles`);
       }
     }
     if (faltantes.length > 0) {
@@ -400,7 +392,8 @@ export class RecetasService {
         const unidad = this.unidadDe(bloqueados, r);
         if (disp.lt(r.total)) {
           throw new BadRequestException(
-            `Stock insuficiente de ${nombre}: se necesitan ${formatearCantidad(r.total, unidad)} y hay ${formatearCantidad(disp, unidad)} disponibles`,
+            `Stock insuficiente de ${nombre}: se necesitan 
+            ${formatearCantidad(r.total, unidad)} y hay ${formatearCantidad(disp, unidad)} disponibles`,
           );
         }
       }
@@ -475,9 +468,7 @@ export class RecetasService {
           stockMinimo: stockMinimo.toNumber(),
           unidad,
           unidadMinimo:
-            r.tipo === 'ingrediente'
-              ? ((entidad as Ingrediente).stockMinimoUnidad ?? null)
-              : ((entidad as Producto).stockMinimoUnidad ?? null),
+            r.tipo === 'ingrediente' ? ((entidad as Ingrediente).stockMinimoUnidad ?? null) : ((entidad as Producto).stockMinimoUnidad ?? null),
         });
       }
     }
