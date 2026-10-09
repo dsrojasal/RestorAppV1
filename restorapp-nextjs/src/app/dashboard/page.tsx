@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getAuthHeaders } from '@/lib/api';
+import ResumenVentasCard from '@/components/ResumenVentasCard';
 
 interface MovimientoResumen {
   tipo: 'factura' | 'pedido' | 'usuario';
@@ -24,13 +25,27 @@ interface ResumenDashboard {
     ayer: number;
     variacionPorcentaje: number | null;
     porHora: number[];
+    porHoraAyer: number[];
+    cuentasPorHoraHoy: number[];
+    horaActual: number;
+    minutoActual: number;
+    diaEnCurso: boolean;
+    ayerCerro: number;
+    ventasAyerHastaMismaHora: number;
+    proyeccionHoy: number | null;
+    cuentasHoy: number;
+    cuentasAyerHastaMismaHora: number;
+    ticketPromedioHoy: number | null;
+    ticketPromedioAyerHastaMismaHora: number | null;
   };
+  mesasOcupadas: number;
   pedidos: {
     enProceso: number;
     enPreparacion: number;
     listos: number;
   };
   insumosPorAgotarse: InsumoPorAgotarse[];
+  contablesPorAgotarse: InsumoPorAgotarse[];
   ultimosMovimientos: MovimientoResumen[];
 }
 
@@ -46,10 +61,6 @@ function tiempoRelativo(fechaIso: string): string {
   const dias = Math.floor(horas / 24);
   if (dias < 7) return `Hace ${dias} día${dias !== 1 ? 's' : ''}`;
   return fecha.toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' });
-}
-
-function fmtPesos(n: number): string {
-  return `$${Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 }
 
 export default function DashboardPage() {
@@ -152,35 +163,7 @@ export default function DashboardPage() {
          )}
          {resumen && !loading && (
            <>
-             <div className="card-data animate-in animate-in-delay-2">
-               <p className="card-data-title">Ventas del día</p>
-               <p className="card-data-value">{fmtPesos(resumen.ventas.hoy)}</p>
-               <div className="flex items-center gap-2 mt-1">
-                 {resumen.ventas.variacionPorcentaje !== null && resumen.ventas.variacionPorcentaje >= 0 ? (
-                   <>
-                     <span className="material-symbols-outlined text-[#2ECC71] text-lg">trending_up</span>
-                     <p className="text-[#2ECC71] text-sm font-medium">+{resumen.ventas.variacionPorcentaje.toFixed(1)}% vs ayer</p>
-                   </>
-                 ) : resumen.ventas.variacionPorcentaje !== null ? (
-                   <>
-                     <span className="material-symbols-outlined text-[var(--danger)] text-lg">trending_down</span>
-                     <p className="text-[var(--danger)] text-sm font-medium">{resumen.ventas.variacionPorcentaje.toFixed(1)}% vs ayer</p>
-                   </>
-                 ) : (
-                   <>
-                     <span className="material-symbols-outlined text-[var(--text-muted)] text-lg">trending_flat</span>
-                     <p className="text-[var(--text-muted)] text-sm font-medium">Sin datos de ayer</p>
-                   </>
-                 )}
-               </div>
-               <div className="bar-chart mt-4">
-                 {resumen.ventas.porHora.map((h, i) => {
-                   const max = Math.max(1, ...resumen.ventas.porHora);
-                   const altura = (h / max) * 100;
-                   return <div key={i} className="bar-chart-item" style={{ height: `${Math.max(4, altura)}%`, opacity: 0.35 + (altura / max) * 0.4 }} />;
-                 })}
-               </div>
-             </div>
+<ResumenVentasCard ventas={resumen.ventas} mesasOcupadas={resumen.mesasOcupadas} />
              <div className="card-data animate-in animate-in-delay-3">
                <p className="card-data-title">Pedidos en proceso</p>
                <p className="card-data-value">{resumen.pedidos.enProceso} Pedido{resumen.pedidos.enProceso !== 1 ? 's' : ''}</p>
@@ -210,13 +193,34 @@ export default function DashboardPage() {
                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{i.restante} restantes</p>
                      </div>
                      <div className="progress-bar">
-                       <div className={`progress-bar-fill ${i.nivel}`} style={{ width: `${Math.max(5, Math.min(100, 100 - i.porcentaje))}%` }} />
+                       <div className={`progress-bar-fill ${i.nivel}`} style={{ width: `${Math.max(5, Math.min(100, i.porcentaje))}%` }} />
                      </div>
                    </div>
                  ))
                )}
              </div>
-             <div className="card-data animate-in animate-in-delay-4">
+             <div className="card-data animate-in animate-in-delay-3">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="card-data-title" style={{ marginBottom: 0 }}>Contables por agotarse</p>
+                  <span className="material-symbols-outlined text-[#F1C40F] text-2xl">warning</span>
+                </div>
+                {resumen.contablesPorAgotarse.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No hay contables por debajo del stock mínimo.</p>
+                ) : (
+                  resumen.contablesPorAgotarse.map((i) => (
+                    <div key={i.id} className="mb-3 last:mb-0">
+                      <div className="flex justify-between items-baseline mb-1">
+                        <p className="font-medium text-sm">{i.nombre}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{i.restante} restantes</p>
+                      </div>
+                      <div className="progress-bar">
+                        <div className={`progress-bar-fill ${i.nivel}`} style={{ width: `${Math.max(5, Math.min(100, i.porcentaje))}%` }} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="card-data animate-in animate-in-delay-4">
                <p className="card-data-title" style={{ marginBottom: 12 }}>Últimos movimientos</p>
                {resumen.ultimosMovimientos.length === 0 ? (
                  <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No hay movimientos recientes.</p>

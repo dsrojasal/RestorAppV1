@@ -6,6 +6,8 @@ import { Factura, EstadoPago } from 'src/facturas/entities/factura.entity';
 import { Pedido, PedidoEstado } from 'src/pedidos/entities/pedido.entity';
 import { Ingrediente } from 'src/ingredientes/entities/ingrediente.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
+import { Mesa, MesaEstado } from 'src/mesas/entities/mesa.entity';
+import { Producto } from 'src/productos/entities/producto.entity';
 import { aDecimal, formatearCantidad } from 'src/common/unidades';
 
 const ZONA = 'America/Bogota';
@@ -33,13 +35,27 @@ export interface ResumenDashboard {
     ayer: number;
     variacionPorcentaje: number | null;
     porHora: number[];
+    porHoraAyer: number[];
+    cuentasPorHoraHoy: number[];
+    horaActual: number;
+    minutoActual: number;
+    diaEnCurso: boolean;
+    ayerCerro: number;
+    ventasAyerHastaMismaHora: number;
+    proyeccionHoy: number | null;
+    cuentasHoy: number;
+    cuentasAyerHastaMismaHora: number;
+    ticketPromedioHoy: number | null;
+    ticketPromedioAyerHastaMismaHora: number | null;
   };
+  mesasOcupadas: number;
   pedidos: {
     enProceso: number;
     enPreparacion: number;
     listos: number;
   };
   insumosPorAgotarse: InsumoPorAgotarse[];
+  contablesPorAgotarse: InsumoPorAgotarse[];
   ultimosMovimientos: MovimientoResumen[];
 }
 
@@ -89,6 +105,8 @@ export class DashboardService {
     @InjectRepository(Pedido) private readonly pedidoRepo: Repository<Pedido>,
     @InjectRepository(Ingrediente) private readonly ingredienteRepo: Repository<Ingrediente>,
     @InjectRepository(Usuario) private readonly usuarioRepo: Repository<Usuario>,
+    @InjectRepository(Mesa) private readonly mesaRepo: Repository<Mesa>,
+    @InjectRepository(Producto) private readonly productoRepo: Repository<Producto>,
   ) {}
 
   async resumen(): Promise<ResumenDashboard> {
@@ -96,20 +114,28 @@ export class DashboardService {
     const inicioHoy = instanteZona(new Date(), 0, 0, 0);
     const inicioManana = instanteZona(new Date(), 0, 0, 1);
 
-    const [ventas, pedidos, insumosPorAgotarse, ultimosMovimientos] = await Promise.all([
+    const [ventas, mesasOcupadas, pedidos, insumosPorAgotarse, contablesPorAgotarse, ultimosMovimientos] = await Promise.all([
       this.ventas(inicioAyer, inicioHoy, inicioManana),
+      this.mesasOcupadas(),
       this.pedidos(),
       this.insumosPorAgotarse(),
+      this.contablesPorAgotarse(),
       this.movimientos(),
     ]);
 
     return {
       generadoEn: new Date().toISOString(),
       ventas,
+      mesasOcupadas,
       pedidos,
       insumosPorAgotarse,
+      contablesPorAgotarse,
       ultimosMovimientos,
     };
+  }
+
+  private async mesasOcupadas(): Promise<number> {
+    return this.mesaRepo.count({ where: { estado: MesaEstado.OCUPADA } });
   }
 
   private async ventas(inicioAyer: Date, inicioHoy: Date, inicioManana: Date) {
@@ -123,28 +149,65 @@ export class DashboardService {
       .getRawMany<{ total: string; fechaCobro: Date }>();
 
     const porHora = Array.from({ length: 24 }, () => new Decimal(0));
+    const porHoraAyer = Array.from({ length: 24 }, () => new Decimal(0));
+    const cuentasPorHoraHoy = Array.from({ length: 24 }, () => 0);
+    const cuentasPorHoraAyer = Array.from({ length: 24 }, () => 0);
     let hoy = new Decimal(0);
     let ayer = new Decimal(0);
+    let cuentasHoy = 0;
 
     for (const fila of filas) {
       if (!fila.fechaCobro) continue;
       const fecha = new Date(fila.fechaCobro);
       const total = aDecimal(fila.total);
+      const hora = partesZona(fecha).hour;
       if (fecha.getTime() >= inicioHoy.getTime()) {
         hoy = hoy.add(total);
-        porHora[partesZona(fecha).hour] = porHora[partesZona(fecha).hour].add(total);
+        cuentasHoy += 1;
+        porHora[hora] = porHora[hora].add(total);
+        cuentasPorHoraHoy[hora] += 1;
       } else {
         ayer = ayer.add(total);
+        porHoraAyer[hora] = porHoraAyer[hora].add(total);
+        cuentasPorHoraAyer[hora] += 1;
       }
     }
 
+    const ahora = partesZona(new Date());
+    const horaActual = ahora.hour;
+
+    let ventasAyerHastaMismaHora = new Decimal(0);
+    let cuentasAyerHastaMismaHora = 0;
+    for (let h = 0; h <= horaActual; h++) {
+      ventasAyerHastaMismaHora = ventasAyerHastaMismaHora.add(porHoraAyer[h]);
+      cuentasAyerHastaMismaHora += cuentasPorHoraAyer[h];
+    }
+
     const variacion = ayer.gt(0) ? Number(hoy.minus(ayer).div(ayer).times(100).toDecimalPlaces(1, Decimal.ROUND_HALF_UP).toFixed(1)) : null;
+
+    const ticketPromedioHoy = cuentasHoy > 0 ? money(hoy.div(cuentasHoy)) : null;
+    const ticketPromedioAyer = cuentasAyerHastaMismaHora > 0 ? money(ventasAyerHastaMismaHora.div(cuentasAyerHastaMismaHora)) : null;
+
+    const proyeccionHoy =
+      ventasAyerHastaMismaHora.gt(0) && hoy.gt(0) ? money(hoy.div(ventasAyerHastaMismaHora).times(ayer)) : null;
 
     return {
       hoy: money(hoy),
       ayer: money(ayer),
       variacionPorcentaje: variacion,
       porHora: porHora.map((v) => money(v)),
+      porHoraAyer: porHoraAyer.map((v) => money(v)),
+      cuentasPorHoraHoy,
+      horaActual,
+      minutoActual: ahora.minute,
+      diaEnCurso: hoy.gt(0),
+      ayerCerro: money(ayer),
+      ventasAyerHastaMismaHora: money(ventasAyerHastaMismaHora),
+      proyeccionHoy,
+      cuentasHoy,
+      cuentasAyerHastaMismaHora,
+      ticketPromedioHoy,
+      ticketPromedioAyerHastaMismaHora: ticketPromedioAyer,
     };
   }
 
@@ -185,6 +248,28 @@ export class DashboardService {
         id: c.ingrediente.id,
         nombre: c.ingrediente.nombre,
         restante: formatearCantidad(c.disponible, c.ingrediente.unidad, c.ingrediente.stockMinimoUnidad),
+        porcentaje: Number(proporcion.toDecimalPlaces(1, Decimal.ROUND_HALF_UP).toFixed(1)),
+        nivel: proporcion.lte(10) ? ('danger' as const) : ('warning' as const),
+      };
+    });
+  }
+
+  private async contablesPorAgotarse(): Promise<InsumoPorAgotarse[]> {
+    const candidatos = (await this.productoRepo.find())
+      .map((p) => {
+        const minimo = aDecimal(p.stockMinimo);
+        const disponible = aDecimal(p.stock).minus(aDecimal(p.stockReservado));
+        return { producto: p, minimo, disponible, proporcion: minimo.gt(0) ? disponible.div(minimo) : null };
+      })
+      .filter((c) => c.minimo.gt(0) && c.disponible.lte(c.minimo) && c.proporcion !== null)
+      .sort((a, b) => (a.proporcion as Decimal).comparedTo(b.proporcion as Decimal));
+
+    return candidatos.slice(0, 5).map((c) => {
+      const proporcion = (c.proporcion as Decimal).times(100);
+      return {
+        id: c.producto.id,
+        nombre: c.producto.nombre,
+        restante: formatearCantidad(c.disponible, 'und'),
         porcentaje: Number(proporcion.toDecimalPlaces(1, Decimal.ROUND_HALF_UP).toFixed(1)),
         nivel: proporcion.lte(10) ? ('danger' as const) : ('warning' as const),
       };
