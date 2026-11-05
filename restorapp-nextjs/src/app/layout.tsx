@@ -4,6 +4,9 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'RestorApp - Sistema de Gestión para Restaurantes',
   description: 'Sistema Integral de Gestión para Restaurantes',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

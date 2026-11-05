@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback } from 'react';
 import ModalSheet from '@/components/ModalSheet';
 import LiveIndicator from '@/components/LiveIndicator';
 import { useLiveData } from '@/lib/useLiveData';
+import TicketModal from '@/components/TicketModal';
+import type { TicketData } from '@/lib/imprimirTicket';
 import { getAuthHeaders } from '@/lib/api';
 
-interface Linea { id: number; cantidad: number; nombre?: string; observacion?: string; producto?: { nombre: string } | null; }
+interface Linea { id: number; cantidad: number; nombre?: string; observacion?: string; precioUnitario?: number | string | null; producto?: { nombre: string } | null; }
 interface PedidoInFactura { id: number; total: number; mesa?: { numero: number } | null; usuario?: { name: string } | null; detalles?: Linea[] | null; }
 interface Factura { id: number; pedidoId: number; total: number; estadoPago: string; fechaEmision: string; tipoPago?: { id: number; nombre: string } | null; pedido?: PedidoInFactura | null; creadoPor?: { name: string } | null; cobradoPor?: { name: string } | null; cobradoPorRol?: string | null; fechaCobro?: string | null; anuladoPor?: { name: string } | null; motivoAnulacion?: string | null; }
 interface TipoPago { id: number; nombre: string; }
@@ -29,6 +31,7 @@ export default function FacturacionPage() {
   const [selectedTipoPago, setSelectedTipoPago] = useState<number | null>(null);
   const [tipoPagos, setTipoPagos] = useState<TipoPago[]>([]);
   const [busy, setBusy] = useState(false);
+  const [ticket, setTicket] = useState<TicketData | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -59,12 +62,47 @@ export default function FacturacionPage() {
     return text ? JSON.parse(text) : null;
   }
 
+  function armarTicket(f: Factura, extra: Partial<TicketData> = {}): TicketData {
+    return {
+      numero: f.id,
+      estado: f.estadoPago as 'pendiente' | 'pagado' | 'anulado',
+      fecha: f.fechaCobro ?? f.fechaEmision,
+      pedidoId: f.pedidoId,
+      mesa: f.pedido?.mesa?.numero,
+      mesero: f.pedido?.usuario?.name,
+      cajero: f.cobradoPor?.name,
+      items: (f.pedido?.detalles ?? []).map((d) => ({
+        nombre: d.producto?.nombre || d.nombre || 'Producto',
+        cantidad: d.cantidad,
+        precio: d.precioUnitario != null ? Number(d.precioUnitario) : null,
+        observacion: d.observacion,
+      })),
+      total: Number(f.total),
+      metodoPago: f.tipoPago?.nombre,
+      ...extra,
+    };
+  }
+
   async function confirmarPago() {
     if (!pagarTarget || !selectedTipoPago) return;
+    const f = pagarTarget;
+    const metodo = tipoPagos.find((t) => t.id === selectedTipoPago)?.nombre;
+
     setBusy(true);
-    const result = await api('POST', `/api/backend/facturas/${pagarTarget.id}/pagar`, { tipoPagoId: selectedTipoPago });
+    const result = await api('POST', `/api/backend/facturas/${f.id}/pagar`, { tipoPagoId: selectedTipoPago });
     setBusy(false);
-    if (result) { alert('Cobro registrado'); setPagarTarget(null); setSelectedTipoPago(null); await load(); }
+
+    if (result) {
+      setPagarTarget(null);
+      setSelectedTipoPago(null);
+      await load();
+      setTicket(armarTicket(f, {
+        estado: 'pagado',
+        fecha: new Date(),
+        cajero: result.cobradoPor?.name,
+        metodoPago: metodo,
+      }));
+    }
   }
 
   async function anular(factura: Factura) {
@@ -73,6 +111,10 @@ export default function FacturacionPage() {
     if (motivo === null) return;
     const result = await api('POST', `/api/backend/facturas/${factura.id}/anular`, motivo.trim() ? { motivo: motivo.trim() } : {});
     if (result) await load();
+  }
+
+  function imprimir(f: Factura) {
+    setTicket(armarTicket(f));
   }
 
   const list = tab === 'pendientes' ? pendientes : tab === 'pagadas' ? pagadas : anuladas;
@@ -169,8 +211,16 @@ export default function FacturacionPage() {
                       <button className="btn-primary" style={{ flex: 1 }} onClick={() => { setPagarTarget(f); setSelectedTipoPago(null); }}>
                         <span className="material-symbols-outlined" style={{ fontSize: 18 }}>payments</span> Cobrar
                       </button>
+                      <button className="btn-cancel" onClick={() => imprimir(f)} title="Imprimir pre-cuenta" aria-label="Imprimir pre-cuenta">
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, verticalAlign: 'middle' }}>print</span>
+                      </button>
                       <button className="btn-cancel" style={{ flex: 0.4 }} onClick={() => anular(f)}>Anular</button>
                     </>
+                  )}
+                  {f.estadoPago === 'pagado' && (
+                    <button className="btn-primary" onClick={() => imprimir(f)}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 18 }}>print</span> Imprimir ticket
+                    </button>
                   )}
                 </div>
               </div>
@@ -202,6 +252,8 @@ export default function FacturacionPage() {
           </div>
         )}
       </ModalSheet>
+
+      <TicketModal data={ticket} onClose={() => setTicket(null)} />
     </>
   );
 }
