@@ -32,6 +32,7 @@ import { RealtimeInterceptor } from './realtime/realtime.interceptor';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { RecetasModule } from './recetas/recetas.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ReportesModule } from './reportes/reportes.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     NotificacionesModule,
     RecetasModule,
     DashboardModule,
+    ReportesModule,
     RealtimeModule,
   ],
   controllers: [AppController],
