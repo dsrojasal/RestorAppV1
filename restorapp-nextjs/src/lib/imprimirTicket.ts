@@ -17,7 +17,13 @@ export interface TicketData {
   cajero?: string | null;
   items: TicketItem[];
   total: number;
+  subtotal?: number;
+  iva?: number;
+  ivaPorcentaje?: number | null;
+  propina?: number;
+  propinaPorcentaje?: number | null;
   metodoPago?: string | null;
+  metodosPago?: string[] | null;
 }
 
 const NOMBRE_NEGOCIO = 'RestorApp';
@@ -173,14 +179,25 @@ export function construirTicketHTML(
   </table>
 
   <div class="sep"></div>
+  ${
+    d.subtotal != null && (Number(d.iva) > 0 || Number(d.propina) > 0)
+      ? `${fila('SUBTOTAL:', money(d.subtotal))}
+         ${Number(d.iva) > 0 ? fila(`IVA${d.ivaPorcentaje != null ? ` (${d.ivaPorcentaje}%)` : ''}:`, money(Number(d.iva))) : ''}
+         ${Number(d.propina) > 0 ? fila(`PROPINA${d.propinaPorcentaje != null ? ` (${d.propinaPorcentaje}%)` : ''}:`, money(Number(d.propina))) : ''}
+         <div class="sep"></div>`
+      : ''
+  }
   <div class="row big"><span>TOTAL:</span><span>${money(d.total)}</span></div>
 
   <div class="bold" style="margin-top:6px">IMPORTE EN LETRAS:</div>
   <div class="small">${numeroALetras(d.total)}</div>
 
   ${
-    d.estado === 'pagado' && d.metodoPago
-      ? `<div class="sep"></div>${fila('FORMA DE PAGO:', esc(d.metodoPago))}`
+    d.estado === 'pagado' && (d.metodosPago?.length || d.metodoPago)
+      ? `<div class="sep"></div>${fila(
+          'FORMA DE PAGO:',
+          esc(d.metodosPago?.length ? d.metodosPago.join(' + ') : d.metodoPago),
+        )}`
       : ''
   }
   ${

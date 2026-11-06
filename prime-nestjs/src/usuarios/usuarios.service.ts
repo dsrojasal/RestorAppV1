@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { hashSync } from 'bcryptjs';
@@ -17,6 +17,14 @@ export class UsuariosService {
   ) {}
 
   async create(dto: CreateUsuarioDto): Promise<Usuario> {
+    const existente = await this.usuariosRepository.findOne({
+      where: { email: dto.email },
+      select: ['id'],
+    });
+    if (existente) {
+      throw new ConflictException('Ese correo ya está registrado. Usa otro correo.');
+    }
+
     const usuario = this.usuariosRepository.create(dto);
     const saved = await this.usuariosRepository.save(usuario);
     const conRol = await this.usuariosRepository.findOne({ where: { id: saved.id }, relations: ['rol'] });
@@ -63,6 +71,15 @@ export class UsuariosService {
   async update(id: number, dto: UpdateUsuarioDto): Promise<Usuario> {
     const usuario = await this.findById(id);
     if (!usuario) throw new NotFoundException(`Usuario #${id} no encontrado`);
+    if (dto.email && dto.email !== usuario.email) {
+      const existente = await this.usuariosRepository.findOne({
+        where: { email: dto.email },
+        select: ['id'],
+      });
+      if (existente && existente.id !== id) {
+        throw new ConflictException('Ese correo ya está registrado. Usa otro correo.');
+      }
+    }
     if (dto.password) {
       dto.password = hashSync(dto.password, 10);
     }

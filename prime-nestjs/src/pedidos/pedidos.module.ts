@@ -9,11 +9,13 @@ import { Mesa } from 'src/mesas/entities/mesa.entity';
 import { Factura } from 'src/facturas/entities/factura.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
+import { PagoFactura } from 'src/facturas/entities/pago-factura.entity';
 import { NotificacionesModule } from 'src/notificaciones/notificaciones.module';
 import { RecetasModule } from 'src/recetas/recetas.module';
+import { TurnosModule } from 'src/turnos/turnos.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Pedido, DetallePedido, Producto, Mesa, Factura, TipoPago, Usuario]), NotificacionesModule, RecetasModule],
+  imports: [TypeOrmModule.forFeature([Pedido, DetallePedido, Producto, Mesa, Factura, PagoFactura, TipoPago, Usuario]), NotificacionesModule, RecetasModule, TurnosModule],
   controllers: [PedidosController],
   providers: [PedidosService],
   exports: [PedidosService],

@@ -13,25 +13,42 @@ const NAV_ITEMS = [
   { label: 'Usuarios', icon: 'group', href: '/dashboard/usuarios', id: 'users' },
   { label: 'Proveedores', icon: 'local_shipping', href: '/dashboard/proveedores', id: 'suppliers' },
   { label: 'Facturación', icon: 'receipt', href: '/dashboard/facturacion', id: 'billing' },
+  { label: 'Caja', icon: 'point_of_sale', href: '/dashboard/caja', id: 'caja' },
   { label: 'Reportes', icon: 'bar_chart', href: '/dashboard/reportes', id: 'reports' },
   { label: 'Configuración', icon: 'settings', href: '/dashboard/configuracion', id: 'settings' },
 ];
 
 const ROLE_ACCESS: Record<number, string[]> = {
-  1: ['dashboard', 'menu', 'tables', 'kitchen', 'inventory', 'orders', 'users', 'suppliers', 'billing', 'reports', 'settings'],
+  1: ['dashboard', 'menu', 'tables', 'kitchen', 'inventory', 'orders', 'users', 'suppliers', 'billing', 'caja', 'reports', 'settings'],
   2: ['dashboard', 'tables', 'orders'],
   3: ['kitchen'],
-  4: ['dashboard', 'billing', 'reports'],
+  4: ['dashboard', 'billing', 'caja', 'reports'],
+};
+
+/** Accesos que otorgan los roles operativos del turno. */
+const TURNO_ROLE_ACCESS: Record<string, string[]> = {
+  mesero: ['dashboard', 'tables', 'orders'],
+  cajero: ['dashboard', 'billing', 'caja', 'reports'],
+  cocinero: ['kitchen'],
 };
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   userRoleId?: number;
+  turnoRoles?: string[];
+  cajaAbierta?: boolean | null;
   onLogout: () => void;
 }
 
-export default function Sidebar({ isOpen, onClose, userRoleId = 1, onLogout }: SidebarProps) {
+export default function Sidebar({
+  isOpen,
+  onClose,
+  userRoleId = 1,
+  turnoRoles = [],
+  cajaAbierta = null,
+  onLogout,
+}: SidebarProps) {
   const pathname = usePathname();
 
   const currentId = (() => {
@@ -46,6 +63,7 @@ export default function Sidebar({ isOpen, onClose, userRoleId = 1, onLogout }: S
       '/usuarios': 'users',
       '/proveedores': 'suppliers',
       '/facturacion': 'billing',
+      '/caja': 'caja',
       '/reportes': 'reports',
       '/configuracion': 'settings',
       '/reportePDF': 'reports',
@@ -53,8 +71,18 @@ export default function Sidebar({ isOpen, onClose, userRoleId = 1, onLogout }: S
     return map[path] || 'dashboard';
   })();
 
-  const allowedIds = ROLE_ACCESS[userRoleId] || ROLE_ACCESS[1];
+  const allowedIds = (() => {
+    if (userRoleId === 1) return ROLE_ACCESS[1];
+    const ids = new Set(ROLE_ACCESS[userRoleId] ?? ROLE_ACCESS[2]);
+    for (const rol of turnoRoles) {
+      for (const id of TURNO_ROLE_ACCESS[rol] ?? []) ids.add(id);
+    }
+    return [...ids];
+  })();
   const visibleItems = NAV_ITEMS.filter(item => allowedIds.includes(item.id));
+
+  const cajaEstado = cajaAbierta === true ? 'abierta' : cajaAbierta === false ? 'cerrada' : 'desconocida';
+  const cajaTexto = cajaAbierta === true ? 'Caja abierta' : cajaAbierta === false ? 'Caja cerrada' : 'Caja sin estado';
 
   return (
     <>
@@ -87,6 +115,10 @@ export default function Sidebar({ isOpen, onClose, userRoleId = 1, onLogout }: S
           ))}
         </nav>
         <div className="sidebar-footer">
+          <div className={`caja-indicador ${cajaEstado}`} title={`Estado de la caja: ${cajaTexto}`}>
+            <span className="caja-indicador-dot" />
+            <span>{cajaTexto}</span>
+          </div>
           <button onClick={onLogout}>
             <span className="material-symbols-outlined">logout</span>
             Cerrar Sesión

@@ -6,7 +6,10 @@ import { DetallePedido, DetallePedidoEstado } from 'src/detalle-pedido/entities/
 import { Producto, TipoProducto } from 'src/productos/entities/producto.entity';
 import { Mesa, MesaEstado } from 'src/mesas/entities/mesa.entity';
 import { Factura, EstadoPago } from 'src/facturas/entities/factura.entity';
+import { PagoFactura } from 'src/facturas/entities/pago-factura.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
+import { TurnosService } from 'src/turnos/turnos.service';
+import { calcularTotales, normalizarPagos, TotalesCobro, PagoNormalizado } from 'src/facturas/utils/cobro';
 import { Role } from 'src/common/enums/role.enum';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
@@ -23,6 +26,7 @@ export class PedidosService {
   constructor(
     @InjectRepository(Pedido) private readonly repo: Repository<Pedido>,
     private readonly dataSource: DataSource,
+    private readonly turnos: TurnosService,
     private readonly notificaciones?: NotificacionesService,
     private readonly recetas?: RecetasService,
   ) {}
@@ -221,6 +225,30 @@ export class PedidosService {
         throw new BadRequestException('Este pedido ya fue cobrado');
       }
 
+      // Validación de caja ANTES de consumir inventario o cerrar líneas.
+      let turnoId: number | null = null;
+      let cobradoSinTurno = false;
+      let totalesCobro: TotalesCobro | null = null;
+      let pagosCobro: PagoNormalizado[] = [];
+
+      if (dto.modo === 'propio') {
+        const esAdmin = userRol === Role.ADMIN;
+        const turno = await this.turnos.turnoAbiertoParaCobro(manager);
+        this.turnos.validarCobro(turno, esAdmin, dto.overrideSinCaja, dto.motivoSinTurno);
+        turnoId = turno?.id ?? null;
+        cobradoSinTurno = !turno && esAdmin && !!dto.overrideSinCaja;
+
+        const base = factura && Number(factura.subtotal) > 0 ? Number(factura.subtotal) : Number(pedido.total);
+        totalesCobro = calcularTotales(base, dto.ivaPorcentaje, dto.propinaPorcentaje, dto.propinaMonto);
+        pagosCobro = normalizarPagos(dto.pagos, dto.tipoPagoId, totalesCobro.total);
+
+        const idsTipo = [...new Set(pagosCobro.map((p) => p.tipoPagoId))];
+        const tipos = await manager.find(TipoPago, { where: { id: In(idsTipo) } });
+        if (tipos.length !== idsTipo.length) {
+          throw new NotFoundException('Uno de los métodos de pago no existe');
+        }
+      }
+
       const productosIds = activas.map((l) => l.productoId);
       const productosMap = new Map((await manager.find(Producto, { where: { id: In(productosIds) } })).map((p) => [p.id, p]));
 
@@ -241,38 +269,73 @@ export class PedidosService {
       }
 
       if (dto.modo === 'propio') {
-        if (!dto.tipoPagoId) throw new BadRequestException('Debe seleccionar un método de pago');
-        const tipo = await manager.findOne(TipoPago, { where: { id: dto.tipoPagoId } });
-        if (!tipo) throw new NotFoundException('Método de pago no encontrado');
+        const totales = totalesCobro!;
+        const pagos = pagosCobro;
 
         await manager.update(Pedido, pedidoId, {
           estado: PedidoEstado.ENTREGADO,
-          tipoPagoId: dto.tipoPagoId,
+          tipoPagoId: pagos[0].tipoPagoId,
         });
 
         if (factura) {
+          factura.subtotal = totales.subtotal;
+          factura.ivaPorcentaje = totales.ivaPorcentaje;
+          factura.iva = totales.iva;
+          factura.propinaPorcentaje = totales.propinaPorcentaje;
+          factura.propina = totales.propina;
+          factura.total = totales.total;
           factura.estadoPago = EstadoPago.PAGADO;
-          factura.tipoPagoId = dto.tipoPagoId;
+          factura.tipoPagoId = pagos[0].tipoPagoId;
           factura.creadoPorId = userId ?? factura.creadoPorId;
           factura.cobradoPorId = userId ?? null;
           factura.cobradoPorRol = userRol ?? null;
           factura.fechaCobro = new Date();
+          factura.turnoId = turnoId;
+          factura.cobradoSinTurno = cobradoSinTurno;
+          factura.autorizadoSinTurnoPorId = cobradoSinTurno ? userId ?? null : null;
+          factura.motivoSinTurno = cobradoSinTurno ? (dto.motivoSinTurno ?? '').trim() : null;
           factura = await manager.save(Factura, factura);
         } else {
           factura = await manager.save(
             Factura,
             manager.create(Factura, {
               pedidoId,
-              total: Number(pedido.total),
+              subtotal: totales.subtotal,
+              ivaPorcentaje: totales.ivaPorcentaje,
+              iva: totales.iva,
+              propinaPorcentaje: totales.propinaPorcentaje,
+              propina: totales.propina,
+              total: totales.total,
               estadoPago: EstadoPago.PAGADO,
-              tipoPagoId: dto.tipoPagoId,
+              tipoPagoId: pagos[0].tipoPagoId,
               creadoPorId: userId ?? null,
               cobradoPorId: userId ?? null,
               cobradoPorRol: userRol ?? null,
               fechaCobro: new Date(),
+              turnoId,
+              cobradoSinTurno,
+              autorizadoSinTurnoPorId: cobradoSinTurno ? userId ?? null : null,
+              motivoSinTurno: cobradoSinTurno ? (dto.motivoSinTurno ?? '').trim() : null,
             }),
           );
         }
+
+        const facturaGuardada = factura!;
+        await manager.delete(PagoFactura, { facturaId: facturaGuardada.id });
+        await manager.save(
+          PagoFactura,
+          pagos.map((p) =>
+            manager.create(PagoFactura, {
+              facturaId: facturaGuardada.id,
+              tipoPagoId: p.tipoPagoId,
+              monto: p.monto,
+              fecha: new Date(),
+              cobradoPorId: userId ?? null,
+              cobradoPorRol: userRol ?? null,
+            }),
+          ),
+        );
+
         await manager.update(Mesa, pedido.mesaId, { estado: MesaEstado.LIBRE });
       } else {
         await manager.update(Pedido, pedidoId, { estado: PedidoEstado.ENTREGADO });
@@ -281,11 +344,16 @@ export class PedidosService {
             Factura,
             manager.create(Factura, {
               pedidoId,
+              subtotal: Number(pedido.total),
               total: Number(pedido.total),
               estadoPago: EstadoPago.PENDIENTE,
               creadoPorId: userId ?? null,
             }),
           );
+        } else if (!Number(factura.subtotal)) {
+          factura.subtotal = Number(pedido.total);
+          factura.total = Number(pedido.total);
+          factura = await manager.save(Factura, factura);
         }
       }
 

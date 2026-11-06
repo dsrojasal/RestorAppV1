@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger, ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DatabaseExceptionFilter } from './common/filters/database-exception.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -33,6 +34,9 @@ async function bootstrap() {
 
     // Global interceptors
     app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+
+    // Errores de base de datos traducidos a respuestas claras (sin SQL ni detalles internos)
+    app.useGlobalFilters(new DatabaseExceptionFilter());
 
     // Swagger - only enable in non-production environments
     if (configService.get('env') !== 'production') {

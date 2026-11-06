@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import ModalSheet from '@/components/ModalSheet';
+import MoneyInput from '@/components/MoneyInput';
 import ContextMenu, { ContextMenuRef } from '@/components/ContextMenu';
 import { getAuthHeaders, handleApiError } from '@/lib/api';
 import { fmtCant, fmtCantCon, fmtCOP } from '@/lib/unidades';
+import { montoParaInput, parseMonto } from '@/lib/montos';
 
 interface Categoria {
   id: number;
@@ -55,6 +57,7 @@ export default function PlatosTab() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Producto | null>(null);
   const [tipoSel, setTipoSel] = useState<string>('plato');
+  const [precio, setPrecio] = useState('');
   const [error, setError] = useState('');
   const menuRef = useRef<ContextMenuRef>(null);
 
@@ -111,6 +114,7 @@ export default function PlatosTab() {
   function openCreate() {
     setEditing(null);
     setTipoSel('plato');
+    setPrecio('');
     setError('');
     setModalOpen(true);
   }
@@ -118,6 +122,7 @@ export default function PlatosTab() {
   function openEdit(p: Producto) {
     setEditing(p);
     setTipoSel(p.tipo || 'plato');
+    setPrecio(montoParaInput(p.precio));
     setError('');
     setModalOpen(true);
   }
@@ -125,13 +130,13 @@ export default function PlatosTab() {
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
     const nombre = (document.getElementById('p-nombre') as HTMLInputElement).value.trim();
-    const precio = parseFloat((document.getElementById('p-precio') as HTMLInputElement).value);
+    const precioNum = parseMonto(precio);
     const tipo = tipoSel;
     const categoriaId = parseInt((document.getElementById('p-categoria') as HTMLSelectElement).value, 10);
 
     if (!nombre) return;
-    if (Number.isNaN(precio) || precio < 0) {
-      alert('El precio debe ser un número mayor o igual a 0');
+    if (precioNum == null || precioNum < 0) {
+      setError('Escribe un precio válido (ej. 20.000 o 20000).');
       return;
     }
     if (!categoriaId) {
@@ -139,7 +144,7 @@ export default function PlatosTab() {
       return;
     }
 
-    const body: Record<string, unknown> = { nombre, precio, tipo, categoriaId };
+    const body: Record<string, unknown> = { nombre, precio: precioNum, tipo, categoriaId };
     const stockMinInput = document.getElementById('p-stock-min') as HTMLInputElement | null;
     const stockMinVal = stockMinInput ? parseInt(stockMinInput.value || '0', 10) || 0 : editing?.stockMinimo ?? 0;
     if (editing) {
@@ -347,8 +352,14 @@ export default function PlatosTab() {
           </div>
           <div className="form-row">
             <div className="form-field">
-              <label htmlFor="p-precio">Precio ($)</label>
-              <input id="p-precio" placeholder="Ej. 25000" type="number" min="0" step="0.01" defaultValue={editing?.precio ?? ''} required />
+              <label htmlFor="p-precio">Precio</label>
+              <MoneyInput
+                id="p-precio"
+                value={precio}
+                onChange={setPrecio}
+                placeholder="Ej. 20.000"
+                required
+              />
             </div>
             <div className="form-field">
               <label htmlFor="p-tipo">Tipo</label>

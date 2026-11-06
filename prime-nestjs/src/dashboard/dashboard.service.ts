@@ -188,8 +188,7 @@ export class DashboardService {
     const ticketPromedioHoy = cuentasHoy > 0 ? money(hoy.div(cuentasHoy)) : null;
     const ticketPromedioAyer = cuentasAyerHastaMismaHora > 0 ? money(ventasAyerHastaMismaHora.div(cuentasAyerHastaMismaHora)) : null;
 
-    const proyeccionHoy =
-      ventasAyerHastaMismaHora.gt(0) && hoy.gt(0) ? money(hoy.div(ventasAyerHastaMismaHora).times(ayer)) : null;
+    const proyeccionHoy = ventasAyerHastaMismaHora.gt(0) && hoy.gt(0) ? money(hoy.div(ventasAyerHastaMismaHora).times(ayer)) : null;
 
     return {
       hoy: money(hoy),

@@ -21,8 +21,8 @@ export async function apiFetch<T>(
   });
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(error.message || `API error: ${res.status}`);
+    const error = await res.json().catch(() => null);
+    throw new Error(normalizarMensaje(error, res));
   }
 
   return res.json();
@@ -51,6 +51,31 @@ export function getAuthHeaders(): Record<string, string> {
   };
 }
 
-export function handleApiError(res: Response): Promise<{ message?: string }> {
-  return res.json().catch(() => ({ message: res.statusText || 'Error del servidor' }));
+export async function handleApiError(res: Response): Promise<{ message?: string; status?: number }> {
+  const data = await res.json().catch(() => null);
+  const mensaje = normalizarMensaje(data, res);
+
+  return {
+    ...(data && typeof data === 'object' && !Array.isArray(data) ? data : {}),
+    message: mensaje,
+    status: res.status,
+  };
+}
+
+function normalizarMensaje(data: unknown, res: Response): string {
+  if (data && typeof data === 'object' && 'message' in data) {
+    const raw = (data as { message?: unknown }).message;
+    if (Array.isArray(raw)) {
+      const partes = raw.filter((m): m is string => typeof m === 'string' && m.trim().length > 0);
+      if (partes.length > 0) return partes.join('. ');
+    }
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      return raw;
+    }
+  }
+
+  if (res.status >= 500) {
+    return 'No se pudo completar la operación. Intenta de nuevo.';
+  }
+  return 'No se pudo completar la operación. Revisa los datos e intenta de nuevo.';
 }

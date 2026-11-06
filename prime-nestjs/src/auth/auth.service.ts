@@ -51,11 +51,11 @@ export class AuthService {
       const isUniqueViolation =
         (error as Record<string, unknown>)?.code === '23505' || (error instanceof Error && error.message?.includes('duplicate key'));
       if (isUniqueViolation) {
-        throw new ConflictException('User already exists');
+        throw new ConflictException('Ese correo ya está registrado. Usa otro correo.');
       }
       throw error;
     }
 
-    return { msg: 'User created with success' };
+    return { msg: 'Usuario creado correctamente.' };
   }
 }

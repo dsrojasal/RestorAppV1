@@ -33,6 +33,7 @@ import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { RecetasModule } from './recetas/recetas.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportesModule } from './reportes/reportes.module';
+import { TurnosModule } from './turnos/turnos.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { ReportesModule } from './reportes/reportes.module';
     RecetasModule,
     DashboardModule,
     ReportesModule,
+    TurnosModule,
     RealtimeModule,
   ],
   controllers: [AppController],

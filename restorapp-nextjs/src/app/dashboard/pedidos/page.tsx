@@ -5,6 +5,7 @@ import ModalSheet from '@/components/ModalSheet';
 import LiveIndicator from '@/components/LiveIndicator';
 import { useLiveData } from '@/lib/useLiveData';
 import { getAuthHeaders, handleApiError } from '@/lib/api';
+import CobroForm, { CobroPayload } from '@/components/CobroForm';
 
 interface Mesa { id: number; numero: number; capacidad: number; estado: string; }
 
@@ -118,6 +119,8 @@ export default function PedidosPage() {
   const [cobrarModo, setCobrarModo] = useState<'caja' | 'propio' | null>(null);
   const [tipoPagos, setTipoPagos] = useState<TipoPago[]>([]);
   const [selectedTipoPago, setSelectedTipoPago] = useState<number | null>(null);
+  const [cajaAbierta, setCajaAbierta] = useState<boolean | null>(null);
+  const [esAdmin, setEsAdmin] = useState(false);
 
   const [editTarget, setEditTarget] = useState<{ pedidoId: number; linea: DetallePedido } | null>(null);
   const [editCantidad, setEditCantidad] = useState(1);
@@ -151,6 +154,7 @@ export default function PedidosPage() {
       setDisponibilidad(Array.isArray(dispoData) ? dispoData : []);
       setPedidos(Array.isArray(pedidosData) ? pedidosData : []);
       if (meData?.id) setMe({ id: meData.id, name: meData.name, rolId: meData.rolId });
+      setEsAdmin(meData?.rolId === 1);
       if (!selectedMesaId && Array.isArray(mesasData) && mesasData.length > 0) {
         const primeraLibre = mesasData.find((m: { estado: string }) => m.estado === 'libre');
         setSelectedMesaId(primeraLibre ? primeraLibre.id : mesasData[0].id);
@@ -285,16 +289,48 @@ export default function PedidosPage() {
     if (result) { setEditTarget(null); await load(); }
   }
 
-  async function confirmCobrar() {
+  async function abrirCobro(p: Pedido) {
+    setCobrarTarget(p);
+    setCobrarModo(null);
+    setSelectedTipoPago(null);
+    setCajaAbierta(null);
+    try {
+      const res = await fetch('/api/backend/turnos/estado', { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setCajaAbierta(!!data?.abierta);
+      }
+    } catch {
+      /* queda como desconocido */
+    }
+  }
+
+  async function confirmCobrar(payload?: CobroPayload) {
     if (!cobrarTarget || !cobrarModo) return;
     setBusy(true);
-    const body: { modo: string; tipoPagoId?: number } = { modo: cobrarModo };
-    if (cobrarModo === 'propio') body.tipoPagoId = selectedTipoPago!;
-    const result = await api('POST', `/api/backend/pedidos/${cobrarTarget.id}/cobrar`, body);
-    setBusy(false);
-    if (result) {
-      alert(cobrarModo === 'caja' ? 'Pedido enviado a caja' : 'Cobro registrado');
-      setCobrarTarget(null); setCobrarModo(null); setSelectedTipoPago(null); await load();
+    try {
+      const body: Record<string, unknown> = { modo: cobrarModo };
+      if (cobrarModo === 'propio' && payload) Object.assign(body, payload);
+
+      const res = await fetch(`/api/backend/pedidos/${cobrarTarget.id}/cobrar`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (res.status === 401) { window.location.href = '/login'; return; }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+      if (!res.ok) throw new Error(data?.message || 'No se pudo cobrar el pedido');
+
+      setCobrarTarget(null);
+      setCobrarModo(null);
+      setSelectedTipoPago(null);
+      await load();
+    } catch (e) {
+      if (payload) throw e;
+      alert(e instanceof Error ? e.message : 'No se pudo cobrar el pedido');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -511,7 +547,7 @@ export default function PedidosPage() {
                       {canCreate && (esMio(p) || me?.rolId === 4) && (
                         <button className="btn-primary" style={{ flex: 1, minWidth: 160, opacity: cobrable ? 1 : 0.5 }}
                           disabled={!cobrable || enCaja || busy}
-                          onClick={() => { setCobrarTarget(p); setCobrarModo(null); setSelectedTipoPago(null); }}>
+                          onClick={() => abrirCobro(p)}>
                           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>payments</span> Cobrar / Cerrar mesa
                         </button>
                       )}
@@ -699,7 +735,7 @@ export default function PedidosPage() {
       <ModalSheet isOpen={!!cobrarTarget} onClose={() => { setCobrarTarget(null); setCobrarModo(null); }} title="Cobrar / Cerrar mesa">
         {cobrarTarget && (
           <div>
-            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>Pedido #{cobrarTarget.id} · Total: <strong style={{ color: 'var(--text)' }}>{fmt(cobrarTarget.total)}</strong></p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>Pedido #{cobrarTarget.id} · Subtotal: <strong style={{ color: 'var(--text)' }}>{fmt(cobrarTarget.total)}</strong></p>
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
               <button onClick={() => { setCobrarModo('caja'); setSelectedTipoPago(null); }}
                 style={{ flex: 1, padding: '20px 12px', border: `2px solid ${cobrarModo === 'caja' ? '#3498DB' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', background: cobrarModo === 'caja' ? '#EFF6FF' : 'var(--bg-card)', cursor: 'pointer', textAlign: 'center' }}>
@@ -707,33 +743,46 @@ export default function PedidosPage() {
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Enviar a caja</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>La cajera hará el cobro</div>
               </button>
-              <button onClick={() => { setCobrarModo('propio'); }}
+              <button onClick={() => setCobrarModo('propio')}
                 style={{ flex: 1, padding: '20px 12px', border: `2px solid ${cobrarModo === 'propio' ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--radius-lg)', background: cobrarModo === 'propio' ? '#F0FDF4' : 'var(--bg-card)', cursor: 'pointer', textAlign: 'center' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 32, color: 'var(--primary)', marginBottom: 8, display: 'block' }}>payments</span>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Cobrar tú mismo</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Selecciona método de pago</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>IVA, propina y forma de pago</div>
               </button>
             </div>
-            {cobrarModo === 'propio' && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: 8 }}>Método de pago</label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {tipoPagos.map(tp => (
-                    <button key={tp.id} onClick={() => setSelectedTipoPago(tp.id)}
-                      style={{ padding: '10px 16px', border: `1.5px solid ${selectedTipoPago === tp.id ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--radius)',
-                        background: selectedTipoPago === tp.id ? 'rgba(46,204,113,0.1)' : 'var(--bg-card)', cursor: 'pointer', fontWeight: 600, fontSize: 13, color: 'var(--text)', transition: 'all var(--transition)' }}>
-                      {tp.nombre}
-                    </button>
-                  ))}
-                </div>
-              </div>
+
+            {!cobrarModo && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                Elige cómo quieres cerrar la mesa. Enviar a caja no requiere caja abierta; cobrar sí.
+              </p>
             )}
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => { setCobrarTarget(null); setCobrarModo(null); }}>Cancelar</button>
-              <button className="btn-primary" disabled={busy || !cobrarModo || (cobrarModo === 'propio' && !selectedTipoPago)} onClick={confirmCobrar}>
-                {busy ? 'Procesando...' : cobrarModo === 'caja' ? 'Enviar a caja' : 'Confirmar cobro'}
-              </button>
-            </div>
+
+            {cobrarModo === 'caja' && (
+              <>
+                <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 16, fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Se generará una factura pendiente. El cobro (con IVA, propina y pago mixto) se hace en Facturación.
+                </div>
+                <div className="modal-actions">
+                  <button className="btn-cancel" onClick={() => { setCobrarTarget(null); setCobrarModo(null); }}>Cancelar</button>
+                  <button className="btn-primary" disabled={busy} onClick={() => confirmCobrar()}>
+                    {busy ? 'Procesando...' : 'Enviar a caja'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {cobrarModo === 'propio' && (
+              <CobroForm
+                subtotal={Number(cobrarTarget.total)}
+                tipoPagos={tipoPagos}
+                cajaAbierta={cajaAbierta}
+                esAdmin={esAdmin}
+                busy={busy}
+                submitLabel="Confirmar cobro"
+                onCancel={() => { setCobrarTarget(null); setCobrarModo(null); }}
+                onSubmit={(payload) => confirmCobrar(payload)}
+              />
+            )}
           </div>
         )}
       </ModalSheet>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import ModalSheet from '@/components/ModalSheet';
+import { handleApiError } from '@/lib/api';
 
 const ROLE_LABELS: Record<number, string> = { 1: 'Administrador', 2: 'Mesero', 3: 'Chef', 4: 'Cajero' };
 const ROLE_BADGES: Record<number, string> = { 1: 'admin', 2: 'waiter', 3: 'chef', 4: 'cajero' };
@@ -25,6 +26,7 @@ export default function UsuariosPage() {
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState('');
+  const [formError, setFormError] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -103,12 +105,14 @@ export default function UsuariosPage() {
 
   function openCreate() {
     setEditingUser(null);
+    setFormError('');
     setModalOpen(true);
     setMenuOpen(null);
   }
 
   function openEdit(u: Usuario) {
     setEditingUser(u);
+    setFormError('');
     setModalOpen(true);
     setMenuOpen(null);
   }
@@ -153,6 +157,8 @@ export default function UsuariosPage() {
 
     const body: Record<string, unknown> = { name: nombre, email, rolId: parseInt(rol) };
 
+    setFormError('');
+
     try {
       if (editId) {
         if (contrasena) Object.assign(body, { password: contrasena });
@@ -161,21 +167,30 @@ export default function UsuariosPage() {
           headers: authHeaders(),
           body: JSON.stringify(body),
         });
-        if (!res.ok) { const err = await res.json(); alert(err.message || 'Error al actualizar'); return; }
+        if (!res.ok) {
+          const err = await handleApiError(res);
+          setFormError(err.message || 'No se pudo actualizar el usuario.');
+          return;
+        }
       } else {
-        if (!contrasena) { alert('La contrasena es obligatoria'); return; }
+        if (!contrasena) { setFormError('La contraseña es obligatoria.'); return; }
         Object.assign(body, { password: contrasena });
         const res = await fetch('/api/backend/usuarios', {
           method: 'POST',
           headers: authHeaders(),
           body: JSON.stringify(body),
         });
-        if (!res.ok) { const err = await res.json(); alert(err.message || 'Error al crear'); return; }
+        if (!res.ok) {
+          const err = await handleApiError(res);
+          setFormError(err.message || 'No se pudo crear el usuario.');
+          return;
+        }
       }
+      setFormError('');
       setModalOpen(false);
       cargarUsuarios();
     } catch {
-      alert('Error de conexion');
+      setFormError('No se pudo conectar con el servidor. Intenta de nuevo.');
     }
   }
 
@@ -295,9 +310,24 @@ export default function UsuariosPage() {
         <span className="material-symbols-outlined">add</span>
       </button>
 
-      <ModalSheet isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingUser ? 'Editar Usuario' : 'Crear Nuevo Usuario'}>
+      <ModalSheet isOpen={modalOpen} onClose={() => { setModalOpen(false); setFormError(''); }} title={editingUser ? 'Editar Usuario' : 'Crear Nuevo Usuario'}>
         <form onSubmit={guardarUsuario}>
           <input type="hidden" id="editId" value={editingUser?.id || ''} />
+          {formError && (
+            <div
+              role="alert"
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 8,
+                padding: '10px 12px', marginBottom: 14,
+                border: '1px solid var(--danger)', borderRadius: 'var(--radius)',
+                background: 'var(--danger-bg)', color: 'var(--danger)',
+                fontSize: 13, fontWeight: 600, lineHeight: 1.35,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18, lineHeight: 1 }}>error</span>
+              <span>{formError}</span>
+            </div>
+          )}
           <div className="form-field">
             <label htmlFor="nombre">Nombre</label>
             <input id="nombre" placeholder="Ej. Juan Perez" type="text" defaultValue={editingUser?.name || ''} required />

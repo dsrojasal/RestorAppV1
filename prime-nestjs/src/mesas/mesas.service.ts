@@ -26,6 +26,12 @@ export class MesasService {
   async update(id: number, dto: UpdateMesaDto): Promise<Mesa> {
     const mesa = await this.findOne(id);
     if (!mesa) throw new NotFoundException(`Mesa #${id} no encontrada`);
+    if (dto.numero != null && dto.numero !== mesa.numero) {
+      const exists = await this.repo.findOneBy({ numero: dto.numero });
+      if (exists && exists.id !== id) {
+        throw new ConflictException(`Ya existe una mesa con numero ${dto.numero}`);
+      }
+    }
     Object.assign(mesa, dto);
     return this.repo.save(mesa);
   }

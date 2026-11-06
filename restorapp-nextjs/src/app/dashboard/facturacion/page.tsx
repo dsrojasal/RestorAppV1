@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import ModalSheet from '@/components/ModalSheet';
 import LiveIndicator from '@/components/LiveIndicator';
+import CobroForm, { CobroPayload } from '@/components/CobroForm';
 import { useLiveData } from '@/lib/useLiveData';
 import TicketModal from '@/components/TicketModal';
 import type { TicketData } from '@/lib/imprimirTicket';
@@ -10,7 +11,16 @@ import { getAuthHeaders } from '@/lib/api';
 
 interface Linea { id: number; cantidad: number; nombre?: string; observacion?: string; precioUnitario?: number | string | null; producto?: { nombre: string } | null; }
 interface PedidoInFactura { id: number; total: number; mesa?: { numero: number } | null; usuario?: { name: string } | null; detalles?: Linea[] | null; }
-interface Factura { id: number; pedidoId: number; total: number; estadoPago: string; fechaEmision: string; tipoPago?: { id: number; nombre: string } | null; pedido?: PedidoInFactura | null; creadoPor?: { name: string } | null; cobradoPor?: { name: string } | null; cobradoPorRol?: string | null; fechaCobro?: string | null; anuladoPor?: { name: string } | null; motivoAnulacion?: string | null; }
+interface PagoFactura { id: number; tipoPagoId: number; monto: number; tipoPago?: { id: number; nombre: string } | null; }
+interface Factura {
+  id: number; pedidoId: number; total: number; subtotal?: number; iva?: number; ivaPorcentaje?: number | null;
+  propina?: number; propinaPorcentaje?: number | null; estadoPago: string; fechaEmision: string;
+  tipoPago?: { id: number; nombre: string } | null; pedido?: PedidoInFactura | null;
+  creadoPor?: { name: string } | null; cobradoPor?: { name: string } | null; cobradoPorRol?: string | null;
+  fechaCobro?: string | null; anuladoPor?: { name: string } | null; motivoAnulacion?: string | null;
+  cobradoSinTurno?: boolean; motivoSinTurno?: string | null; autorizadoSinTurnoPor?: { name: string } | null;
+  pagos?: PagoFactura[] | null;
+}
 interface TipoPago { id: number; nombre: string; }
 
 const fmt = (n: number | string) => '$' + Number(n).toLocaleString('es-CO', { maximumFractionDigits: 0 });
@@ -28,22 +38,28 @@ export default function FacturacionPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'pendientes' | 'pagadas' | 'anuladas'>('pendientes');
   const [pagarTarget, setPagarTarget] = useState<Factura | null>(null);
-  const [selectedTipoPago, setSelectedTipoPago] = useState<number | null>(null);
   const [tipoPagos, setTipoPagos] = useState<TipoPago[]>([]);
   const [busy, setBusy] = useState(false);
   const [ticket, setTicket] = useState<TicketData | null>(null);
+  const [cajaAbierta, setCajaAbierta] = useState<boolean | null>(null);
+  const [esAdmin, setEsAdmin] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const headers = getAuthHeaders();
-      const [facRes, tpRes] = await Promise.all([
+      const [facRes, tpRes, meRes] = await Promise.all([
         fetch('/api/backend/facturas', { headers }),
         fetch('/api/backend/tipo-pago', { headers }),
+        fetch('/api/backend/usuarios/me', { headers }),
       ]);
       if (facRes.status === 401) { window.location.href = '/login'; return; }
       if (facRes.ok) setFacturas(await facRes.json());
       if (tpRes.ok) setTipoPagos(await tpRes.json());
+      if (meRes.ok) {
+        const me = await meRes.json();
+        setEsAdmin(me?.rolId === 1);
+      }
     } catch { /* noop */ } finally { setLoading(false); }
   }, []);
 
@@ -62,6 +78,20 @@ export default function FacturacionPage() {
     return text ? JSON.parse(text) : null;
   }
 
+  async function abrirCobro(f: Factura) {
+    setPagarTarget(f);
+    setCajaAbierta(null);
+    try {
+      const res = await fetch('/api/backend/turnos/estado', { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setCajaAbierta(!!data?.abierta);
+      }
+    } catch {
+      setCajaAbierta(null);
+    }
+  }
+
   function armarTicket(f: Factura, extra: Partial<TicketData> = {}): TicketData {
     return {
       numero: f.id,
@@ -77,31 +107,39 @@ export default function FacturacionPage() {
         precio: d.precioUnitario != null ? Number(d.precioUnitario) : null,
         observacion: d.observacion,
       })),
+      subtotal: f.subtotal != null ? Number(f.subtotal) : Number(f.total),
+      iva: f.iva != null ? Number(f.iva) : 0,
+      ivaPorcentaje: f.ivaPorcentaje != null ? Number(f.ivaPorcentaje) : null,
+      propina: f.propina != null ? Number(f.propina) : 0,
+      propinaPorcentaje: f.propinaPorcentaje != null ? Number(f.propinaPorcentaje) : null,
       total: Number(f.total),
       metodoPago: f.tipoPago?.nombre,
+      metodosPago: (f.pagos ?? []).map((p) => p.tipoPago?.nombre || 'Método').filter(Boolean),
       ...extra,
     };
   }
 
-  async function confirmarPago() {
-    if (!pagarTarget || !selectedTipoPago) return;
-    const f = pagarTarget;
-    const metodo = tipoPagos.find((t) => t.id === selectedTipoPago)?.nombre;
-
+  async function confirmarPago(payload: CobroPayload) {
+    if (!pagarTarget) return;
     setBusy(true);
-    const result = await api('POST', `/api/backend/facturas/${f.id}/pagar`, { tipoPagoId: selectedTipoPago });
-    setBusy(false);
+    try {
+      const res = await fetch(`/api/backend/facturas/${pagarTarget.id}/pagar`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (res.status === 401) { window.location.href = '/login'; return; }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+      if (!res.ok) {
+        throw new Error(data?.message || 'No se pudo cobrar la factura');
+      }
 
-    if (result) {
       setPagarTarget(null);
-      setSelectedTipoPago(null);
       await load();
-      setTicket(armarTicket(f, {
-        estado: 'pagado',
-        fecha: new Date(),
-        cajero: result.cobradoPor?.name,
-        metodoPago: metodo,
-      }));
+      if (data) setTicket(armarTicket(data, { estado: 'pagado', fecha: new Date() }));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -162,18 +200,24 @@ export default function FacturacionPage() {
         <div className="animate-in animate-in-delay-2" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {list.map(f => {
             const st = STATUS_MAP[f.estadoPago] || STATUS_MAP.pendiente;
+            const metodos = (f.pagos ?? []).map((p) => p.tipoPago?.nombre).filter(Boolean);
             return (
               <div key={f.id} className="card-data">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Factura #{f.id}</h3>
                   <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, background: st.bg, color: st.color }}>{st.label}</span>
+                  {f.cobradoSinTurno && (
+                    <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: 'var(--warning-bg)', color: 'var(--warning)' }}>
+                      Cobro sin caja
+                    </span>
+                  )}
                   <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 12 }}>
                     {f.fechaEmision ? new Date(f.fechaEmision).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }) : ''}
                   </span>
                 </div>
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>
                   Pedido #{f.pedidoId} · Mesa {f.pedido?.mesa?.numero ?? '—'} · Mesero: {f.pedido?.usuario?.name ?? '—'}
-                  {f.tipoPago ? ` · ${f.tipoPago.nombre}` : ''}
+                  {metodos.length > 0 ? ` · ${metodos.join(' + ')}` : f.tipoPago ? ` · ${f.tipoPago.nombre}` : ''}
                 </p>
                 {f.estadoPago === 'pendiente' && (
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#B45309', margin: '0 0 10px' }}>
@@ -191,6 +235,11 @@ export default function FacturacionPage() {
                     )}
                   </p>
                 )}
+                {f.cobradoSinTurno && (
+                  <p style={{ fontSize: 12, color: 'var(--warning)', margin: '0 0 10px' }}>
+                    Autorizado sin caja por {f.autorizadoSinTurnoPor?.name ?? '—'}{f.motivoSinTurno ? ` · ${f.motivoSinTurno}` : ''}
+                  </p>
+                )}
                 <div style={{ marginBottom: 10 }}>
                   {f.pedido?.detalles?.map(d => (
                     <div key={d.id} className="order-item-row" style={{ padding: '4px 0', gap: 8 }}>
@@ -201,6 +250,13 @@ export default function FacturacionPage() {
                     </div>
                   ))}
                 </div>
+                {Number(f.iva) > 0 || Number(f.propina) > 0 ? (
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-muted)', padding: '8px 0', borderTop: '1px solid var(--border-light)' }}>
+                    <span>Subtotal: <b style={{ color: 'var(--text-secondary)' }}>{fmt(f.subtotal ?? f.total)}</b></span>
+                    {Number(f.iva) > 0 && <span>IVA{f.ivaPorcentaje != null ? ` (${f.ivaPorcentaje}%)` : ''}: <b style={{ color: 'var(--text-secondary)' }}>{fmt(f.iva!)}</b></span>}
+                    {Number(f.propina) > 0 && <span>Propina{f.propinaPorcentaje != null ? ` (${f.propinaPorcentaje}%)` : ''}: <b style={{ color: 'var(--text-secondary)' }}>{fmt(f.propina!)}</b></span>}
+                  </div>
+                ) : null}
                 <div className="order-total-row" style={{ marginTop: 8 }}>
                   <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Total</span>
                   <span className="font-bold" style={{ color: 'var(--primary)', fontSize: 16 }}>{fmt(f.total)}</span>
@@ -208,7 +264,7 @@ export default function FacturacionPage() {
                 <div className="mt-4" style={{ display: 'flex', gap: 8 }}>
                   {f.estadoPago === 'pendiente' && (
                     <>
-                      <button className="btn-primary" style={{ flex: 1 }} onClick={() => { setPagarTarget(f); setSelectedTipoPago(null); }}>
+                      <button className="btn-primary" style={{ flex: 1 }} onClick={() => abrirCobro(f)}>
                         <span className="material-symbols-outlined" style={{ fontSize: 18 }}>payments</span> Cobrar
                       </button>
                       <button className="btn-cancel" onClick={() => imprimir(f)} title="Imprimir pre-cuenta" aria-label="Imprimir pre-cuenta">
@@ -229,26 +285,25 @@ export default function FacturacionPage() {
         </div>
       )}
 
-      <ModalSheet isOpen={!!pagarTarget} onClose={() => { setPagarTarget(null); setSelectedTipoPago(null); }} title="Cobrar factura">
+      <ModalSheet
+        isOpen={!!pagarTarget}
+        onClose={() => { if (!busy) setPagarTarget(null); }}
+        title="Cobrar factura"
+      >
         {pagarTarget && (
           <div>
-            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Factura #{pagarTarget.id} · Mesa {pagarTarget.pedido?.mesa?.numero ?? '—'} · Total: <strong style={{ color: 'var(--text)' }}>{fmt(pagarTarget.total)}</strong>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 14 }}>
+              Factura #{pagarTarget.id} · Mesa {pagarTarget.pedido?.mesa?.numero ?? '—'} · Pedido #{pagarTarget.pedidoId}
             </p>
-            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: 8 }}>Método de pago</label>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-              {tipoPagos.map(tp => (
-                <button key={tp.id} onClick={() => setSelectedTipoPago(tp.id)}
-                  style={{ padding: '10px 16px', border: `1.5px solid ${selectedTipoPago === tp.id ? 'var(--primary)' : 'var(--border)'}`, borderRadius: 'var(--radius)',
-                    background: selectedTipoPago === tp.id ? 'rgba(46,204,113,0.1)' : 'var(--bg-card)', cursor: 'pointer', fontWeight: 600, fontSize: 13, color: 'var(--text)', transition: 'all var(--transition)' }}>
-                  {tp.nombre}
-                </button>
-              ))}
-            </div>
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => { setPagarTarget(null); setSelectedTipoPago(null); }}>Cancelar</button>
-              <button className="btn-primary" disabled={busy || !selectedTipoPago} onClick={confirmarPago}>{busy ? 'Procesando...' : 'Confirmar cobro'}</button>
-            </div>
+            <CobroForm
+              subtotal={Number(pagarTarget.subtotal ?? pagarTarget.total)}
+              tipoPagos={tipoPagos}
+              cajaAbierta={cajaAbierta}
+              esAdmin={esAdmin}
+              busy={busy}
+              onCancel={() => setPagarTarget(null)}
+              onSubmit={confirmarPago}
+            />
           </div>
         )}
       </ModalSheet>

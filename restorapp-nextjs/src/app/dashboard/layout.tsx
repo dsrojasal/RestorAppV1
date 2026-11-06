@@ -24,8 +24,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [profileOpen, setProfileOpen] = useState(false);
   const [user, setUser] = useState<UserData>({ name: 'Usuario', email: '', rol: 'Administrador', rolId: 1, createdAt: '' });
   const [loading, setLoading] = useState(true);
+  const [cajaAbierta, setCajaAbierta] = useState<boolean | null>(null);
+  const [turnoRoles, setTurnoRoles] = useState<string[]>([]);
   const router = useRouter();
   const { items, unread, marcarLeida, marcarTodas } = useNotifications();
+
+  const cargarCaja = useCallback(async () => {
+    try {
+      const [estadoRes, miTurnoRes] = await Promise.all([
+        fetch('/api/backend/turnos/estado', { headers: { 'Content-Type': 'application/json' } }),
+        fetch('/api/backend/turnos/mi-turno', { headers: { 'Content-Type': 'application/json' } }),
+      ]);
+      if (estadoRes.ok) {
+        const estado = await estadoRes.json();
+        setCajaAbierta(!!estado?.abierta);
+      }
+      if (miTurnoRes.ok) {
+        const miTurno = await miTurnoRes.json();
+        setTurnoRoles(Array.isArray(miTurno?.roles) ? miTurno.roles : []);
+      }
+    } catch {
+      /* el indicador se mantiene con el último estado conocido */
+    }
+  }, []);
+
+  useEffect(() => {
+    cargarCaja();
+    const intervalo = setInterval(cargarCaja, 30000);
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') cargarCaja();
+    };
+    window.addEventListener('focus', cargarCaja);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      clearInterval(intervalo);
+      window.removeEventListener('focus', cargarCaja);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
+  }, [cargarCaja]);
 
   useEffect(() => {
     (async () => {
@@ -63,7 +99,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div id="app-container">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} userRoleId={user.rolId} onLogout={handleLogout} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        userRoleId={user.rolId}
+        turnoRoles={turnoRoles}
+        cajaAbierta={cajaAbierta}
+        onLogout={handleLogout}
+      />
       <Topbar
         onMenuClick={() => setSidebarOpen(true)}
         onNotifClick={() => setNotifOpen(!notifOpen)}
