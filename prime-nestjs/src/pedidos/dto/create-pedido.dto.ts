@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsString, IsOptional, IsArray, ValidateNested, Min } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateLineaPedidoDto } from './create-linea-pedido.dto';
 
@@ -6,10 +6,6 @@ export class CreatePedidoDto {
   @IsNotEmpty()
   @IsNumber()
   mesaId: number;
-
-  @IsNotEmpty()
-  @IsNumber()
-  usuarioId: number;
 
   @IsOptional()
   @IsArray()

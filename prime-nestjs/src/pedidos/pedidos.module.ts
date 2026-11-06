@@ -15,7 +15,12 @@ import { RecetasModule } from 'src/recetas/recetas.module';
 import { TurnosModule } from 'src/turnos/turnos.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Pedido, DetallePedido, Producto, Mesa, Factura, PagoFactura, TipoPago, Usuario]), NotificacionesModule, RecetasModule, TurnosModule],
+  imports: [
+    TypeOrmModule.forFeature([Pedido, DetallePedido, Producto, Mesa, Factura, PagoFactura, TipoPago, Usuario]),
+    NotificacionesModule,
+    RecetasModule,
+    TurnosModule,
+  ],
   controllers: [PedidosController],
   providers: [PedidosService],
   exports: [PedidosService],

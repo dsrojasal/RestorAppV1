@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
 import { Mesa } from 'src/mesas/entities/mesa.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
@@ -14,6 +14,10 @@ export enum PedidoEstado {
 }
 
 @Entity()
+@Index('IDX_PEDIDO_MESA', ['mesaId'])
+@Index('IDX_PEDIDO_USUARIO', ['usuarioId'])
+@Index('IDX_PEDIDO_ESTADO', ['estado'])
+@Index('IDX_PEDIDO_CREADO', ['createdAt'])
 export class Pedido {
   @PrimaryGeneratedColumn()
   id: number;

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (NestJS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prime-nestjs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: prime-nestjs/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint "{src,test}/**/*.ts"
+
+      - name: Build
+        env:
+          PRIVATE_KEY: "-----BEGIN RSA PRIVATE KEY-----\nstub\n-----END RSA PRIVATE KEY-----"
+          PUBLIC_KEY: "-----BEGIN PUBLIC KEY-----\nstub\n-----END PUBLIC KEY-----"
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test -- --runInBand
+
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: restorapp-nextjs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: restorapp-nextjs/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx next lint
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3000
+          API_URL: http://localhost:3000
+        run: npm run build

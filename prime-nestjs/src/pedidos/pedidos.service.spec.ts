@@ -10,6 +10,7 @@ import { Factura, EstadoPago } from 'src/facturas/entities/factura.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
 import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
 import { RecetasService } from 'src/recetas/recetas.service';
+import { TurnosService } from 'src/turnos/turnos.service';
 
 function mockTransaction(manager: any) {
   return jest.fn((cb: (m: any) => any) => cb(manager));
@@ -20,6 +21,10 @@ describe('PedidosService', () => {
 
   const repo = { find: jest.fn(), findOne: jest.fn(), save: jest.fn(), create: jest.fn() };
   const dataSource = { transaction: jest.fn() };
+  const turnos = {
+    turnoAbiertoParaCobro: jest.fn(async () => ({ id: 1 })),
+    validarCobro: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -28,6 +33,7 @@ describe('PedidosService', () => {
         PedidosService,
         { provide: getRepositoryToken(Pedido), useValue: repo },
         { provide: DataSource, useValue: dataSource },
+        { provide: TurnosService, useValue: turnos },
         { provide: NotificacionesService, useValue: { crear: jest.fn(), notificarStockBajo: jest.fn() } },
         {
           provide: RecetasService,

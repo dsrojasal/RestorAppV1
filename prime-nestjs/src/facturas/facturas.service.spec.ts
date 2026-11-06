@@ -8,6 +8,7 @@ import { Pedido, PedidoEstado } from 'src/pedidos/entities/pedido.entity';
 import { DetallePedido, DetallePedidoEstado } from 'src/detalle-pedido/entities/detalle-pedido.entity';
 import { Mesa, MesaEstado } from 'src/mesas/entities/mesa.entity';
 import { TipoPago } from 'src/tipo-pago/entities/tipo-pago.entity';
+import { TurnosService } from 'src/turnos/turnos.service';
 
 function mockTransaction(manager: any) {
   return jest.fn((cb: (m: any) => any) => cb(manager));
@@ -18,29 +19,44 @@ describe('FacturasService', () => {
 
   const repo = { find: jest.fn(), findOne: jest.fn(), findOneBy: jest.fn(), save: jest.fn(), create: jest.fn(), delete: jest.fn() };
   const dataSource = { transaction: jest.fn() };
+  const turnos = {
+    turnoAbiertoParaCobro: jest.fn(async () => ({ id: 1 })),
+    validarCobro: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     const moduleRef = await Test.createTestingModule({
-      providers: [FacturasService, { provide: getRepositoryToken(Factura), useValue: repo }, { provide: DataSource, useValue: dataSource }],
+      providers: [
+        FacturasService,
+        { provide: getRepositoryToken(Factura), useValue: repo },
+        { provide: DataSource, useValue: dataSource },
+        { provide: TurnosService, useValue: turnos },
+      ],
     }).compile();
     service = moduleRef.get(FacturasService);
   });
 
   it('pagar cobra la factura, cierra las líneas y libera la mesa', async () => {
+    const facturaMock = { id: 1, pedidoId: 10, total: 100, subtotal: 0, estadoPago: EstadoPago.PENDIENTE };
     const manager = {
       findOne: jest.fn(async (Entity: any) => {
-        if (Entity === Factura) return { id: 1, pedidoId: 10, total: 100, estadoPago: EstadoPago.PENDIENTE };
+        if (Entity === Factura) return facturaMock;
         if (Entity === TipoPago) return { id: 3, nombre: 'Tarjeta crédito' };
         if (Entity === Pedido) return { id: 10, mesaId: 2 };
         return null;
       }),
-      find: jest.fn(async () => [
-        { id: 1, estado: DetallePedidoEstado.PENDIENTE },
-        { id: 2, estado: DetallePedidoEstado.LISTO },
-        { id: 3, estado: DetallePedidoEstado.CANCELADO },
-      ]),
+      find: jest.fn(async (Entity: any) => {
+        if (Entity === TipoPago) return [{ id: 3, nombre: 'Tarjeta crédito' }];
+        return [
+          { id: 1, estado: DetallePedidoEstado.PENDIENTE },
+          { id: 2, estado: DetallePedidoEstado.LISTO },
+          { id: 3, estado: DetallePedidoEstado.CANCELADO },
+        ];
+      }),
       save: jest.fn(async (...a: any[]) => (a.length > 1 ? a[1] : a[0])),
+      create: jest.fn((_Entity: any, o: any) => o),
+      delete: jest.fn(),
       update: jest.fn(),
     };
     (service as any).dataSource.transaction.mockImplementation(mockTransaction(manager));

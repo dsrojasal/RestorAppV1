@@ -217,7 +217,7 @@ export class NotificacionesService {
     }
   }
 
-  private visibleWhere(rol: string, uid: number): string {
+  private visibleWhere(rol: string, _uid: number): string {
     const rolCond = ROL_COLUMN[rol] ?? 'FALSE';
     return `(${rolCond} OR n.usuarioId = :uid) AND (n.creadoPorId IS NULL OR n.creadoPorId <> :uid)`;
   }

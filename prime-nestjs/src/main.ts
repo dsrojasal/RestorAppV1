@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { Logger, ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DatabaseExceptionFilter } from './common/filters/database-exception.filter';
+import { crearValidadorOrigenes } from './common/cors-origin';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -16,9 +17,18 @@ async function bootstrap() {
     // Security middleware
     app.use(helmet());
 
+    // Detrás de un proxy inverso (Nginx/Caddy) se confía en X-Forwarded-For
+    // para que el rate limiting use la IP real del cliente.
+    if (process.env.TRUST_PROXY === 'true') {
+      app.getHttpAdapter().getInstance().set('trust proxy', 1);
+    }
+
     const allowedOrigins = configService.get<string[]>('allowedOrigins', ['http://localhost:3000']);
     app.enableCors({
-      origin: allowedOrigins,
+      // Acepta los orígenes configurados y, además, localhost y rangos de red
+      // privada en cualquier puerto. Así el sistema sigue funcionando cuando
+      // se instala en otra máquina o cambia la IP del servidor.
+      origin: crearValidadorOrigenes(allowedOrigins),
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
       credentials: true,
     });
@@ -53,8 +63,11 @@ async function bootstrap() {
     }
 
     const port = configService.get('port', 3000);
-    await app.listen(port, '0.0.0.0');
-    logger.log(`Application is running on: http://localhost:${port}`);
+    // HOST=127.0.0.1 en producción detrás del proxy: el backend deja de ser
+    // accesible desde la red y solo el proxy puede hablar con él.
+    const host = process.env.HOST || '0.0.0.0';
+    await app.listen(port, host);
+    logger.log(`Application is running on: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`);
   } catch (error) {
     logger.error('Error during application bootstrap:', error);
     process.exit(1);

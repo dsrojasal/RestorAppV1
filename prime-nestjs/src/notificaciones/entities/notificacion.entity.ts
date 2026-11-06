@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, Index } from 'typeorm';
 
 export enum TipoNotificacion {
   PEDIDO = 'pedido',
@@ -10,6 +10,8 @@ export enum TipoNotificacion {
 }
 
 @Entity('notificaciones')
+@Index('IDX_NOTIFICACION_USUARIO', ['usuarioId'])
+@Index('IDX_NOTIFICACION_CREADO', ['createdAt'])
 export class Notificacion {
   @PrimaryGeneratedColumn()
   id: number;

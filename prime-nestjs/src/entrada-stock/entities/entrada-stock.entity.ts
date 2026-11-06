@@ -1,10 +1,13 @@
-import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, Index } from 'typeorm';
 import { Producto } from 'src/productos/entities/producto.entity';
 import { Ingrediente } from 'src/ingredientes/entities/ingrediente.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
 import { decimalTransformer } from 'src/common/decimal.transformer';
 
 @Entity()
+@Index('IDX_ENTRADA_STOCK_PRODUCTO', ['productoId'])
+@Index('IDX_ENTRADA_STOCK_INGREDIENTE', ['ingredienteId'])
+@Index('IDX_ENTRADA_STOCK_FECHA', ['fecha'])
 export class EntradaStock {
   @PrimaryGeneratedColumn()
   id: number;

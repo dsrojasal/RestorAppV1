@@ -1,0 +1,46 @@
+LICENCIA PROPIETARIA — RESTORAPP WEB
+====================================
+
+Copyright (c) 2026 Daniel Rojas. Todos los derechos reservados.
+All rights reserved.
+
+1. TITULARIDAD
+--------------
+El frontend de RestorApp ubicado en este directorio (restorapp-nextjs/) es
+desarrollo original de Daniel Rojas. No deriva del proyecto prime-nestjs.
+
+2. RESTRICCIONES
+----------------
+No se concede ninguna licencia, expresa o implícita, para usar, copiar,
+modificar, fusionar, publicar, distribuir, sublicenciar, vender, alquilar
+o explotar comercialmente este software o parte de él, sin autorización
+previa y por escrito del titular.
+
+Queda prohibido eliminar o alterar los avisos de copyright o el archivo
+LICENSE.
+
+3. DEPENDENCIAS
+---------------
+Las dependencias de npm conservan sus propias licencias. Consulta
+`node_modules/<paquete>/LICENSE`. Esas licencias no cambian la licencia
+propietaria de este frontend.
+
+4. GARANTÍAS
+------------
+EL SOFTWARE SE PROPORCIONA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA
+O IMPLÍCITA, INCLUYENDO, ENTRE OTRAS, LAS GARANTÍAS DE COMERCIABILIDAD,
+IDONEIDAD PARA UN PROPÓSITO PARTICULAR Y NO INFRACCIÓN.
+
+5. RESPONSABILIDAD
+------------------
+EN NINGÚN CASO EL TITULAR SERÁ RESPONSABLE DE NINGÚN RECLAMO, DAÑO U OTRA
+RESPONSABILIDAD, YA SEA EN ACCIÓN CONTRACTUAL, EXTRACONTRACTUAL O DE OTRO
+TIPO, DERIVADA DEL SOFTWARE O DEL USO DEL MISMO.
+
+6. PERMISOS COMERCIALES
+-----------------------
+Para solicitar permisos de uso, distribución, integración o explotación
+comercial, contactar al titular del proyecto.
+
+RestorApp Web
+https://github.com/dsrojasal/RestorAppV1

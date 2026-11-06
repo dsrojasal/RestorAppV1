@@ -12,10 +12,7 @@ import { Usuario } from 'src/usuarios/entities/usuario.entity';
 import { TurnosModule } from 'src/turnos/turnos.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Factura, PagoFactura, Pedido, DetallePedido, Mesa, TipoPago, Usuario]),
-    TurnosModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Factura, PagoFactura, Pedido, DetallePedido, Mesa, TipoPago, Usuario]), TurnosModule],
   controllers: [FacturasController],
   providers: [FacturasService],
   exports: [FacturasService],

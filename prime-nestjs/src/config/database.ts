@@ -1,4 +1,5 @@
 import { DataSource, DataSourceOptions } from 'typeorm';
+import { join } from 'path';
 import * as dotenv from 'dotenv';
 
 // Load environment variables from .env file
@@ -12,8 +13,10 @@ export const dataSourceOptions: DataSourceOptions = {
   password: process.env.POSTGRES_PASSWORD,
   database: process.env.POSTGRES_DB,
   entities: ['dist/**/*.entity{.ts,.js}'],
-  migrations: ['dist/migrations/*{.ts,.js}'],
-  synchronize: true,
+  migrations: [join(__dirname, '..', 'migrations', '*{.ts,.js}')],
+  // El esquema se administra exclusivamente con migraciones. Nunca se
+  // sincroniza automáticamente para evitar cambios o pérdidas de datos.
+  synchronize: false,
   ssl: process.env.POSTGRES_SSL === 'true' ? { rejectUnauthorized: process.env.POSTGRES_SSL_REJECT_UNAUTHORIZED !== 'false' } : false,
   extra: {
     max: parseInt(process.env.POSTGRES_POOL_SIZE ?? '10', 10) || 10,

@@ -71,7 +71,16 @@ export default function LoginPage() {
             <p style={{ color: '#584140', marginTop: '4px', fontSize: '16px' }}>Bienvenido de nuevo</p>
           </div>
 
-          <form style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }} onSubmit={handleSubmit}>
+          <form
+            method="post"
+            style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}
+            onSubmit={handleSubmit}
+          >
+            <noscript>
+              <p style={{ color: '#ae2f34', fontSize: '14px', fontWeight: 600 }}>
+                Activa JavaScript para poder iniciar sesion.
+              </p>
+            </noscript>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontSize: '14px', fontWeight: 600, color: '#584140' }} htmlFor="email">Correo electronico</label>
               <input

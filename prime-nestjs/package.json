@@ -1,14 +1,18 @@
 {
-  "name": "prime-nestjs",
-  "version": "2.1.0",
-  "description": "A production-ready NestJS boilerplate with authentication, TypeORM, Swagger and more.",
+  "name": "restorapp-api",
+  "version": "1.0.0",
+  "description": "API REST y WebSocket de RestorApp, sistema integral de gestión para restaurantes.",
   "author": {
-    "name": "Joseph Goksu",
-    "email": "josephgoksu@gmail.com",
-    "url": "https://josephgoksu.com"
+    "name": "Daniel Rojas",
+    "url": "https://github.com/dsrojasal"
   },
-  "private": false,
-  "license": "MIT",
+  "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dsrojasal/RestorAppV1.git"
+  },
+  "homepage": "https://github.com/dsrojasal/RestorAppV1#readme",
   "scripts": {
     "prebuild": "rimraf dist tsconfig.build.tsbuildinfo",
     "build": "nest build",
@@ -35,6 +39,7 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "security:audit": "npm audit",
+    "security:demo-off": "node scripts/desactivar-cuentas-demo.js --aplicar",
     "prepare": "if [ -d '.git' ]; then husky install; fi"
   },
   "dependencies": {

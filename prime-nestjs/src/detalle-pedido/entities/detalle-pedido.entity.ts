@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, UpdateDateColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, UpdateDateColumn, Index } from 'typeorm';
 import { Pedido } from 'src/pedidos/entities/pedido.entity';
 import { Producto } from 'src/productos/entities/producto.entity';
 
@@ -11,6 +11,8 @@ export enum DetallePedidoEstado {
 }
 
 @Entity()
+@Index('IDX_DETALLE_PEDIDO_PEDIDO', ['pedidoId'])
+@Index('IDX_DETALLE_PEDIDO_PRODUCTO', ['productoId'])
 export class DetallePedido {
   @PrimaryGeneratedColumn()
   id: number;

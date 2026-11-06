@@ -1,150 +1,275 @@
-# RestorApp
+<p align="center">
+  <img src="logo.svg" width="88" height="88" alt="RestorApp API">
+</p>
 
-**Stop wiring up auth, databases, and configs from scratch. Start building your product.**
+<h1 align="center">RestorApp API</h1>
 
 <p align="center">
-  <img src="documentation/prime-nestjs.jpg" width="600" alt="prime-nestjs">
+  Backend REST + WebSocket de RestorApp<br>
+  NestJS 11 · TypeORM · PostgreSQL · Socket.io
 </p>
 
 <p align="center">
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <a href="https://snyk.io/test/github/josephgoksu/prime-nestjs"><img src="https://snyk.io/test/github/josephgoksu/prime-nestjs/badge.svg" alt="Known Vulnerabilities"></a>
-  <img src="https://img.shields.io/github/last-commit/josephgoksu/prime-nestjs.svg" alt="GitHub last commit">
-  <img src="https://img.shields.io/github/stars/josephgoksu/prime-nestjs.svg?style=social&label=Star" alt="GitHub stars">
-  <img src="https://img.shields.io/github/forks/josephgoksu/prime-nestjs.svg?style=social&label=Fork" alt="GitHub forks">
+  <img src="https://img.shields.io/badge/NestJS-11-e0234e?style=flat-square" alt="NestJS 11">
+  <img src="https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square" alt="TypeScript 5">
+  <img src="https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square" alt="PostgreSQL 16">
+  <img src="https://img.shields.io/badge/Socket.io-4-010101?style=flat-square" alt="Socket.io 4">
+  <img src="https://img.shields.io/badge/licencia-Propietaria%20%2B%20MIT-red?style=flat-square" alt="Licencia propietaria + MIT">
 </p>
-
-Production-ready NestJS starter kit. Clone it, configure your `.env`, and ship — auth, database, docs, and Docker are already done.
-
-### What's Inside
-
-- **JWT Authentication** (RSA256) with Role-Based Access Control
-- **PostgreSQL + TypeORM** with migrations and connection pooling
-- **Swagger API Docs** auto-generated at `/api`
-- **Docker Compose** — one command to run everything
-- **Testing** with Jest (unit + e2e)
-- **Code Quality** with ESLint, Prettier, Husky, commitlint
-- **Security** hardened with Helmet and CORS
-- **Health Checks** built-in for production monitoring
-
-## Quick Start
-
-### Prerequisites
-
-- Node.js >= 20.0.0
-- PostgreSQL (or use Docker)
-
-### Setup
-
-```bash
-git clone https://github.com/josephgoksu/prime-nestjs.git
-cd prime-nestjs
-npm install
-cp .env.example .env
-
-# Start with Docker (recommended)
-npm run docker:up
-
-# OR start locally
-npm run start:dev
-```
-
-API available at `http://localhost:3000` | Swagger docs at `http://localhost:3000/api`
-
-## Development
-
-### Available Scripts
-
-```bash
-npm run start:dev     # Development with hot-reload
-npm run build         # Build for production
-npm run start:prod    # Run production build
-npm run test          # Run unit tests
-npm run test:e2e      # Run e2e tests
-npm run test:cov      # Generate coverage report
-npm run lint          # Lint and fix code
-npm run format        # Format code with Prettier
-```
-
-### Database
-
-```bash
-npm run schema:sync              # Sync database schema (dev only)
-npm run migration:generate       # Generate migration from changes
-npm run migration:run            # Apply pending migrations
-npm run migration:revert         # Revert last migration
-```
-
-### Docker
-
-```bash
-npm run docker:build   # Build containers
-npm run docker:up      # Start all services
-npm run docker:down    # Stop all services
-```
-
-## Project Structure
-
-```
-src/
-├── auth/           # JWT authentication & guards
-├── config/         # App configuration
-├── tasks/          # Task management feature
-├── users/          # User management
-└── main.ts         # Application entry
-```
-
-## Environment Variables
-
-```env
-# Database
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=mysecretpassword
-POSTGRES_DB=postgres
-
-# App
-PORT=3000
-NODE_ENV=development
-
-# Auth (generate your own keys - see Security section)
-PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----..."
-PUBLIC_KEY="-----BEGIN PUBLIC KEY-----..."
-```
-
-## Security
-
-### Generate RSA Keys
-
-```bash
-# Generate private key
-openssl genrsa -out private_key.pem 2048
-
-# Extract public key
-openssl rsa -in private_key.pem -pubout -out public_key.pem
-
-# Format for .env (single line)
-awk 'NF {sub(/\r/, ""); printf"%s\\n",$0;}' private_key.pem
-awk 'NF {sub(/\r/, ""); printf"%s\\n",$0;}' public_key.pem
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing`)
-3. Commit changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing`)
-5. Open a Pull Request
-
-## License
-
-[MIT](LICENSE) © [Joseph Goksu](https://josephgoksu.com)
 
 ---
 
-If this saved you time, consider giving it a star. It helps others find it.
+## ¿Qué es?
 
-## Star History
+API del sistema de gestión para restaurantes RestorApp. Expone endpoints REST
+para pedidos, mesas, cocina, caja, facturación, inventario, compras, reportes
+y usuarios, además de un gateway Socket.io para mantener las pantallas
+sincronizadas en tiempo real.
 
-Sistema Integral de Gestión para Restaurantes
+El frontend vive en [`../restorapp-nextjs/`](../restorapp-nextjs/README.md) y
+la documentación completa en [`../documentacion/`](../documentacion/README.md).
+
+---
+
+## Alcance
+
+- Autenticación JWT **RS256** con cookie httpOnly y roles.
+- CRUD de usuarios, roles, categorías, productos, ingredientes y recetas.
+- Mesas, reservas y control de ocupación.
+- Pedidos con líneas, estados, transferencia y cobro.
+- Facturas con IVA, propina, pago mixto y anulación.
+- Turnos de caja con apertura, personal, movimientos y arqueo.
+- Inventario con reserva, consumo, reabastecimiento y ajustes.
+- Proveedores, órdenes de compra y entradas de stock.
+- Dashboard y reportes de ventas, productos, insumos y meseros.
+- Notificaciones internas y tareas programadas.
+- Tiempo real por Socket.io.
+
+No incluye facturación electrónica DIAN, multi-sucursal ni 2FA en esta versión.
+
+---
+
+## Requisitos
+
+| Requisito | Versión |
+|---|---|
+| Node.js | 20 o superior |
+| npm | 10 o superior |
+| PostgreSQL | 13 o superior (recomendado 16) |
+| Docker + Compose v2 | Opcional, recomendado para la base |
+
+---
+
+## Instalación
+
+```bash
+cd prime-nestjs
+npm ci --ignore-scripts
+cp .env.example .env
+# Edita .env con tus credenciales y claves RSA
+```
+
+### Base de datos con Docker
+
+```bash
+docker compose up -d database
+npm run migration:run
+```
+
+### Base de datos externa
+
+Configura `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`,
+`POSTGRES_PASSWORD` y `POSTGRES_DB` en `.env`, y ejecuta:
+
+```bash
+npm run migration:run
+```
+
+### Arranque
+
+```bash
+npm run start:dev     # desarrollo con recarga
+npm run build         # compilar
+npm run start:prod    # ejecutar dist/main
+```
+
+- API: `http://localhost:3000`
+- Swagger: `http://localhost:3000/api` (solo fuera de producción)
+- Salud: `http://localhost:3000/health-check`
+
+---
+
+## Variables de entorno
+
+Plantilla: [`.env.example`](.env.example). Referencia completa:
+[`../documentacion/09-configuracion-entornos.md`](../documentacion/09-configuracion-entornos.md).
+
+| Grupo | Variables |
+|---|---|
+| Base de datos | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_SSL`, `POSTGRES_SSL_REJECT_UNAUTHORIZED`, `POSTGRES_POOL_SIZE` |
+| Servidor | `PORT`, `HOST`, `NODE_ENV`, `TRUST_PROXY`, `ALLOWED_ORIGINS` |
+| Seguridad | `PRIVATE_KEY`, `PUBLIC_KEY` |
+| Notificaciones | `NOTIF_INVENTORY_CRON`, `NOTIF_ABANDONADO_CRON`, `NOTIF_ABANDONADO_HORAS` |
+
+> No subas `.env` al repositorio. Debe tener permisos `600`. Las claves RSA
+> son obligatorias: sin ellas el backend no arranca.
+
+---
+
+## Scripts
+
+| Script | Qué hace |
+|---|---|
+| `npm run start:dev` | Desarrollo con recarga |
+| `npm run start:prod` | Ejecuta `dist/main` |
+| `npm run build` | Compila a `dist/` |
+| `npm run lint` | ESLint con autofix |
+| `npm run format` | Prettier |
+| `npm test` | Pruebas unitarias |
+| `npm run test:watch` | Pruebas en vigilancia |
+| `npm run test:cov` | Cobertura |
+| `npm run test:e2e` | Pruebas e2e |
+| `npm run migration:run` | Aplica migraciones |
+| `npm run migration:generate -- src/migrations/Nombre` | Genera migración |
+| `npm run migration:revert` | Revierte la última |
+| `npm run seed:carta` | Carga carta de ejemplo |
+| `npm run seed:usuarios-demo` | Crea usuarios demo |
+| `npm run security:demo-off` | Desactiva cuentas demo |
+| `npm run security:audit` | `npm audit` |
+| `npm run docker:up` | Levanta contenedores |
+| `npm run docker:down` | Detiene contenedores |
+
+---
+
+## Base de datos y migraciones
+
+- `synchronize: false`: TypeORM **no** altera el esquema por su cuenta.
+- Todo cambio de entidad requiere una migración versionada.
+- La migración base está en `src/migrations/`.
+- Flujo recomendado:
+
+```bash
+# 1. Crear respaldo
+# 2. Editar la entidad
+npm run migration:generate -- src/migrations/NombreDelCambio
+# 3. Revisar el SQL generado
+# 4. Probar en una base aparte
+npm run migration:run
+# 5. Verificar
+curl http://localhost:3000/health-check
+```
+
+Nunca actives `synchronize: true` en producción.
+
+---
+
+## Módulos
+
+| Área | Módulos |
+|---|---|
+| Seguridad | `auth`, `usuarios`, `rol` |
+| Carta | `categorias`, `productos`, `ingredientes`, `producto-ingrediente`, `recetas` |
+| Salón | `mesas`, `reservas`, `pedidos`, `detalle-pedido` |
+| Caja y cobro | `facturas`, `turnos`, `tipo-pago` |
+| Compras | `proveedores`, `ordenes-compra`, `detalle-orden-compra`, `entrada-stock` |
+| Analítica | `dashboard`, `reportes` |
+| Soporte | `notificaciones`, `realtime`, `seed`, `logger` |
+
+Cada módulo sigue el patrón `controller` → `service` → `repository`.
+Las reglas de negocio viven en el servicio, no en el controlador.
+
+---
+
+## Seguridad
+
+- Contraseñas con **bcrypt** (costo 10).
+- JWT **RS256** firmado con clave privada y verificado con clave pública.
+- Cookie `httpOnly` + `sameSite=strict`.
+- `JwtAuthGuard` global y `RolesGuard` por ruta.
+- Validación estricta de DTOs (`whitelist`, `forbidNonWhitelisted`).
+- `helmet()` y CORS validado para localhost y rangos privados.
+- Rate limiting global (100/min) y login (10/min).
+- Bloqueo temporal por cuenta tras 8 intentos fallidos.
+- Transacciones con bloqueo pesimista en cobros y arqueos.
+- Errores de base traducidos sin filtrar SQL ni stack traces.
+
+Detalle y riesgos pendientes:
+[`../documentacion/12-seguridad.md`](../documentacion/12-seguridad.md).
+
+---
+
+## Pruebas y calidad
+
+```bash
+npm test -- --runInBand
+npx eslint "{src,test}/**/*.ts"
+npm run build
+```
+
+Estado verificado el 2026-11-06:
+
+| Comprobación | Resultado |
+|---|---|
+| Suites | 5 |
+| Pruebas | 25/25 |
+| Lint | 0 errores |
+| Build | Correcto |
+
+El CI de GitHub Actions ejecuta lint, build y pruebas en cada push/PR a `main`.
+Ver [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+
+---
+
+## Estructura
+
+```text
+prime-nestjs/
+├── src/
+│   ├── auth/                 Login, JWT, guards y estrategias
+│   ├── usuarios/             Usuarios y roles
+│   ├── pedidos/              Pedidos, líneas y cobro
+│   ├── facturas/             Facturas, pagos y anulación
+│   ├── turnos/               Caja, personal y arqueo
+│   ├── recetas/              Disponibilidad e inventario
+│   ├── reportes/             Reportes
+│   ├── realtime/             Gateway Socket.io
+│   ├── common/               CORS, filtros, paginación
+│   ├── config/               Configuración y TypeORM
+│   └── migrations/           Esquema versionado
+├── scripts/                  Semillas y utilidades
+├── test/                     Pruebas e2e
+├── docker-compose.yml
+├── Dockerfile
+└── .env.example
+```
+
+---
+
+## Licencia
+
+**RestorApp API es software propietario.** © 2026 Daniel Rojas.
+
+Este backend se construyó a partir de **prime-nestjs** de Joseph Goksu,
+licencia **MIT**. Las porciones derivadas conservan esa licencia.
+
+- [`LICENSE`](LICENSE) — licencia propietaria del backend.
+- [`LICENSE-MIT`](LICENSE-MIT) — licencia MIT del proyecto base.
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) — alcance y obligaciones.
+
+El frontend [`../restorapp-nextjs/`](../restorapp-nextjs/README.md) es
+desarrollo original y **no** deriva de prime-nestjs.
+
+---
+
+## Créditos
+
+- **Base del backend:** [prime-nestjs](https://github.com/josephgoksu/prime-nestjs)
+  de Joseph Goksu, MIT (2021).
+- **RestorApp:** módulos de negocio, reglas, migraciones, seguridad y
+  documentación por Daniel Rojas.
+
+---
+
+<p align="center">
+  <a href="../README.md">← Volver al README principal</a>
+</p>

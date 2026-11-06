@@ -7,6 +7,7 @@ import { CreateLineaPedidoDto } from './dto/create-linea-pedido.dto';
 import { UpdateLineaPedidoDto } from './dto/update-linea-pedido.dto';
 import { CobrarPedidoDto } from './dto/cobrar-pedido.dto';
 import { TransferirPedidoDto } from './dto/transferir-pedido.dto';
+import { PedidosQueryDto } from './dto/pedidos-query.dto';
 import { RolesGuard } from 'src/auth/strategy/roles.guard';
 import { Roles } from 'src/custom.decorator';
 import { Role } from 'src/common/enums/role.enum';
@@ -23,13 +24,13 @@ export class PedidosController {
   @Post()
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MESERO, Role.CAJERO)
-  create(@Body() dto: CreatePedidoDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreatePedidoDto, @Req() req: AuthedRequest) {
+    return this.service.create(dto, req.user?.id);
   }
 
   @Get()
-  findAll(@Query('mesaId') mesaId?: string) {
-    return this.service.findAll(mesaId ? parseInt(mesaId, 10) : undefined);
+  findAll(@Query() query: PedidosQueryDto) {
+    return this.service.findAll(query);
   }
 
   @Get(':id')

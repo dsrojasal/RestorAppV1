@@ -11,17 +11,7 @@ import { PagoFactura } from 'src/facturas/entities/pago-factura.entity';
 import { Pedido } from 'src/pedidos/entities/pedido.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Turno,
-      TurnoUsuario,
-      MovimientoCaja,
-      Usuario,
-      Factura,
-      PagoFactura,
-      Pedido,
-    ]),
-  ],
+  imports: [TypeOrmModule.forFeature([Turno, TurnoUsuario, MovimientoCaja, Usuario, Factura, PagoFactura, Pedido])],
   controllers: [TurnosController],
   providers: [TurnosService],
   exports: [TurnosService],

@@ -1,0 +1,77 @@
+LICENCIA PROPIETARIA DE RESTORAPP
+=================================
+
+Copyright (c) 2026 Daniel Rojas. Todos los derechos reservados.
+All rights reserved.
+
+1. TITULARIDAD
+--------------
+Este software, su código fuente, su documentación, su diseño y sus recursos
+gráficos son propiedad exclusiva de Daniel Rojas, con excepción de las
+porciones identificadas en THIRD_PARTY_NOTICES.md, que se rigen por sus
+propias licencias.
+
+2. ALCANCE
+----------
+La presente licencia cubre el proyecto RestorApp en su conjunto, incluyendo:
+
+  - El backend ubicado en prime-nestjs/, en la medida en que no esté sujeto
+    a la licencia MIT indicada en LICENSE-MIT.
+  - El frontend ubicado en restorapp-nextjs/, que es desarrollo original.
+  - La documentación ubicada en documentacion/.
+  - Los recursos gráficos, marcas y logotipos de RestorApp.
+
+3. RESTRICCIONES
+----------------
+No se concede ninguna licencia, expresa o implícita, para usar, copiar,
+modificar, fusionar, publicar, distribuir, sublicenciar, vender, alquilar
+o explotar comercialmente este software o parte de él, sin autorización
+previa y por escrito del titular.
+
+Queda prohibido:
+
+  a) Eliminar o alterar los avisos de copyright, las licencias de terceros
+     o los archivos LICENSE, LICENSE-MIT y THIRD_PARTY_NOTICES.md.
+  b) Usar el nombre, el logotipo o la identidad visual de RestorApp para
+     sugerir respaldo, afiliación o patrocinio sin autorización.
+  c) Redistribuir el software como si fuera de dominio público o bajo una
+     licencia permisiva distinta a la aquí establecida.
+
+4. COMPONENTES DE TERCEROS
+--------------------------
+El backend de RestorApp se construyó a partir del proyecto prime-nestjs,
+creado por Joseph Goksu y distribuido bajo licencia MIT. Las porciones
+derivadas de ese proyecto se rigen por la licencia MIT incluida en
+LICENSE-MIT y por el aviso THIRD_PARTY_NOTICES.md.
+
+En caso de conflicto entre esta licencia y la licencia MIT, la licencia MIT
+prevalece únicamente para las porciones derivadas de prime-nestjs.
+
+El frontend de RestorApp no deriva de prime-nestjs y se rige por esta
+licencia propietaria.
+
+5. GARANTÍAS
+------------
+EL SOFTWARE SE PROPORCIONA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA
+O IMPLÍCITA, INCLUYENDO, ENTRE OTRAS, LAS GARANTÍAS DE COMERCIABILIDAD,
+IDONEIDAD PARA UN PROPÓSITO PARTICULAR Y NO INFRACCIÓN.
+
+6. RESPONSABILIDAD
+------------------
+EN NINGÚN CASO EL TITULAR SERÁ RESPONSABLE DE NINGÚN RECLAMO, DAÑO U OTRA
+RESPONSABILIDAD, YA SEA EN ACCIÓN CONTRACTUAL, EXTRACONTRACTUAL O DE OTRO
+TIPO, DERIVADA DEL SOFTWARE O DEL USO DEL MISMO.
+
+7. PERMISOS COMERCIALES
+-----------------------
+Para solicitar permisos de uso, distribución, integración o explotación
+comercial, contactar al titular del proyecto.
+
+8. LEGISLACIÓN APLICABLE
+------------------------
+Esta licencia se interpretará conforme a las leyes aplicables en la
+jurisdicción donde el titular opere. Cualquier controversia se someterá a
+los tribunales competentes de dicha jurisdicción.
+
+RestorApp
+https://github.com/dsrojasal/RestorAppV1

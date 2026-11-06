@@ -11,12 +11,20 @@ next-env.d.ts
 # SECRETOS - nunca subir
 .env
 .env.*
+!.env.example
 .env.local
 .env.production
 *.pem
 *.key
 *.crt
 *.p12
+
+# Material interno / evidencia (se conserva en local, no se publica)
+.opencode/
+PROYECTO.html
+backups/
+evidencia/
+prime-nestjs/documentation/documentaci_n_de_api.md
 
 # Logs
 *.log

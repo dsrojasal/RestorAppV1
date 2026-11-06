@@ -52,9 +52,7 @@ export function calcularTotales(
   }
 
   const pctPropina = porcentaje(propinaPorcentaje);
-  const propina = montoPropina != null && montoPropina.gt(0)
-    ? montoPropina
-    : subtotal.mul(pctPropina).div(100);
+  const propina = montoPropina != null && montoPropina.gt(0) ? montoPropina : subtotal.mul(pctPropina).div(100);
 
   const total = subtotal.add(iva).add(propina);
 
@@ -62,11 +60,7 @@ export function calcularTotales(
     subtotal: dinero(subtotal),
     ivaPorcentaje: ivaPorcentaje != null ? dinero(pctIva) : null,
     iva: dinero(iva),
-    propinaPorcentaje: montoPropina != null && montoPropina.gt(0)
-      ? null
-      : propinaPorcentaje != null
-        ? dinero(pctPropina)
-        : null,
+    propinaPorcentaje: montoPropina != null && montoPropina.gt(0) ? null : propinaPorcentaje != null ? dinero(pctPropina) : null,
     propina: dinero(propina),
     total: dinero(total),
   };
@@ -85,11 +79,7 @@ export function normalizarPagos(
     .filter((p) => p && Number.isFinite(Number(p.monto)))
     .map((p) => ({ tipoPagoId: Number(p.tipoPagoId), monto: dinero(aDecimal(p.monto)) }));
 
-  const normalizados = lista.length > 0
-    ? lista
-    : tipoPagoId != null
-      ? [{ tipoPagoId: Number(tipoPagoId), monto: dinero(aDecimal(total)) }]
-      : [];
+  const normalizados = lista.length > 0 ? lista : tipoPagoId != null ? [{ tipoPagoId: Number(tipoPagoId), monto: dinero(aDecimal(total)) }] : [];
 
   if (normalizados.length === 0) {
     throw new BadRequestException('Debe seleccionar al menos un método de pago');
@@ -103,9 +93,7 @@ export function normalizarPagos(
   const suma = normalizados.reduce((acc, p) => acc.add(aDecimal(p.monto)), new Decimal(0));
   const esperado = aDecimal(total);
   if (suma.minus(esperado).abs().gt(new Decimal('0.01'))) {
-    throw new BadRequestException(
-      `Los pagos suman ${suma.toFixed(2)} y el total de la cuenta es ${esperado.toFixed(2)}`,
-    );
+    throw new BadRequestException(`Los pagos suman ${suma.toFixed(2)} y el total de la cuenta es ${esperado.toFixed(2)}`);
   }
 
   // Ajuste de centavos para que la suma sea exactamente el total.

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, In, EntityManager } from 'typeorm';
+import { Repository, DataSource, In, EntityManager, FindOptionsWhere } from 'typeorm';
 import { Pedido, PedidoEstado } from './entities/pedido.entity';
 import { DetallePedido, DetallePedidoEstado } from 'src/detalle-pedido/entities/detalle-pedido.entity';
 import { Producto, TipoProducto } from 'src/productos/entities/producto.entity';
@@ -20,6 +20,9 @@ import { TransferirPedidoDto } from './dto/transferir-pedido.dto';
 import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
 import { TipoNotificacion } from 'src/notificaciones/entities/notificacion.entity';
 import { RecetasService } from 'src/recetas/recetas.service';
+import { PedidosQueryDto } from './dto/pedidos-query.dto';
+import { Pagina } from 'src/common/dto/paginacion-query.dto';
+import { construirPagina, normalizarPaginacion } from 'src/common/paginacion';
 
 @Injectable()
 export class PedidosService {
@@ -31,7 +34,10 @@ export class PedidosService {
     private readonly recetas?: RecetasService,
   ) {}
 
-  async create(dto: CreatePedidoDto): Promise<Pedido> {
+  async create(dto: CreatePedidoDto, usuarioId?: number): Promise<Pedido> {
+    if (!usuarioId) {
+      throw new BadRequestException('No se pudo identificar al usuario que crea el pedido');
+    }
     const pedido = await this.dataSource.transaction(async (manager) => {
       const result = await manager
         .createQueryBuilder()
@@ -48,7 +54,7 @@ export class PedidosService {
 
       const pedido = manager.create(Pedido, {
         mesaId: dto.mesaId,
-        usuarioId: dto.usuarioId,
+        usuarioId,
         estado: PedidoEstado.PENDIENTE,
         total: 0,
         observaciones: dto.observaciones,
@@ -208,7 +214,10 @@ export class PedidosService {
 
   async cobrar(pedidoId: number, dto: CobrarPedidoDto, userId?: number, userRol?: string): Promise<{ factura: Factura; pedido: Pedido }> {
     const resultado = await this.dataSource.transaction(async (manager) => {
-      const pedido = await manager.findOne(Pedido, { where: { id: pedidoId } });
+      const pedido = await manager.findOne(Pedido, {
+        where: { id: pedidoId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
       this.validarDueño(pedido, userId, userRol, true);
 
@@ -292,7 +301,7 @@ export class PedidosService {
           factura.fechaCobro = new Date();
           factura.turnoId = turnoId;
           factura.cobradoSinTurno = cobradoSinTurno;
-          factura.autorizadoSinTurnoPorId = cobradoSinTurno ? userId ?? null : null;
+          factura.autorizadoSinTurnoPorId = cobradoSinTurno ? (userId ?? null) : null;
           factura.motivoSinTurno = cobradoSinTurno ? (dto.motivoSinTurno ?? '').trim() : null;
           factura = await manager.save(Factura, factura);
         } else {
@@ -314,7 +323,7 @@ export class PedidosService {
               fechaCobro: new Date(),
               turnoId,
               cobradoSinTurno,
-              autorizadoSinTurnoPorId: cobradoSinTurno ? userId ?? null : null,
+              autorizadoSinTurnoPorId: cobradoSinTurno ? (userId ?? null) : null,
               motivoSinTurno: cobradoSinTurno ? (dto.motivoSinTurno ?? '').trim() : null,
             }),
           );
@@ -416,12 +425,25 @@ export class PedidosService {
     });
   }
 
-  findAll(mesaId?: number): Promise<Pedido[]> {
-    return this.repo.find({
-      where: mesaId ? { mesaId } : {},
+  async findAll(query?: PedidosQueryDto): Promise<Pedido[] | Pagina<Pedido>> {
+    const paginacion = normalizarPaginacion(query);
+    const where: FindOptionsWhere<Pedido> = query?.mesaId ? { mesaId: query.mesaId } : {};
+    const opciones = {
+      where,
       relations: ['mesa', 'usuario', 'detalles', 'detalles.producto', 'facturas', 'facturas.creadoPor', 'facturas.cobradoPor', 'facturas.anuladoPor'],
-      order: { id: 'DESC' },
+      order: { id: 'DESC' as const },
+    };
+
+    if (!paginacion.paginado) {
+      return this.repo.find(opciones);
+    }
+
+    const [data, total] = await this.repo.findAndCount({
+      ...opciones,
+      skip: paginacion.skip,
+      take: paginacion.limit,
     });
+    return construirPagina(data, total, paginacion.page, paginacion.limit);
   }
 
   findOne(id: number): Promise<Pedido | null> {
@@ -451,6 +473,8 @@ export class PedidosService {
         if (rest.estado === PedidoEstado.CANCELADO && entity.estado !== PedidoEstado.CANCELADO) {
           const actuales = await manager.find(DetallePedido, { where: { pedidoId: id } });
           await this.liberarLineasPendientes(manager, actuales);
+          // Al cancelar, la mesa vuelve a quedar libre (antes solo lo hacía DELETE).
+          await manager.update(Mesa, entity.mesaId, { estado: MesaEstado.LIBRE });
         }
         await manager.update(Pedido, id, { ...rest });
       }

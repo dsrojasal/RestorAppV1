@@ -12,10 +12,24 @@ module.exports = {
     jest: true,
   },
   ignorePatterns: ['.eslintrc.js', '**/*.spec.ts'],
+  overrides: [
+    {
+      // Las migraciones se generan automáticamente y contienen SQL en líneas
+      // largas; no se editan a mano ni se someten a reglas de estilo.
+      files: ['src/migrations/**/*.ts'],
+      rules: {
+        'max-len': 'off',
+        'prettier/prettier': 'off',
+        quotes: 'off',
+        'comma-dangle': 'off',
+        semi: 'off',
+      },
+    },
+  ],
   rules: {
     'prettier/prettier': 'error',
     indent: 'off',
-    quotes: ['error', 'single'],
+    quotes: ['error', 'single', { avoidEscape: true }],
     'linebreak-style': ['error', 'unix'],
     semi: ['error', 'always'],
     'comma-dangle': ['error', 'always-multiline'],

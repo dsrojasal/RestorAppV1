@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
 import { decimalTransformer } from 'src/common/decimal.transformer';
 
 export enum TipoMovimientoInventario {
@@ -10,6 +10,9 @@ export enum TipoMovimientoInventario {
 }
 
 @Entity()
+@Index('IDX_MOV_INVENTARIO_PEDIDO', ['pedidoId'])
+@Index('IDX_MOV_INVENTARIO_INGREDIENTE', ['ingredienteId'])
+@Index('IDX_MOV_INVENTARIO_FECHA', ['createdAt'])
 export class MovimientoInventario {
   @PrimaryGeneratedColumn()
   id: number;

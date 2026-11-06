@@ -8,19 +8,20 @@ import { parse } from 'cookie';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
 import type { Notificacion } from 'src/notificaciones/entities/notificacion.entity';
 import { RealtimeEvents, RealtimeEvent } from './realtime.events';
+import { crearValidadorOrigenes } from 'src/common/cors-origin';
 
 const wsOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
-if (!wsOrigins.includes('http://localhost:3001')) {
-  wsOrigins.push('http://localhost:3001');
-}
 
 const DEBOUNCE_MS = 250;
 
 @WebSocketGateway({
-  cors: { origin: wsOrigins, credentials: true },
+  // El validador acepta localhost y rangos privados en cualquier puerto, así
+  // el Socket.io funciona al mover el sistema a otra máquina de la red sin
+  // editar ALLOWED_ORIGINS.
+  cors: { origin: crearValidadorOrigenes(wsOrigins), credentials: true },
   transports: ['websocket'],
 })
 export class RealtimeGateway implements OnGatewayInit {
@@ -35,39 +36,58 @@ export class RealtimeGateway implements OnGatewayInit {
   ) {}
 
   afterInit(server: Server): void {
-    server.use(async (socket, next) => {
-      // El token viaja en la cookie httpOnly (withCredentials en el cliente), nunca en JS.
-      const cookies = parse(socket.handshake.headers.cookie || '');
-      const token = cookies.token;
+    const validarOrigen = crearValidadorOrigenes(wsOrigins);
 
-      if (!token) {
-        next(new Error('Token no proporcionado'));
-        return;
-      }
-      try {
-        const payload = this.jwtService.verify<{ sub: number; email: string; exp: number }>(token);
-        const usuario = await this.usuarioRepo.findOne({ where: { id: payload.sub }, relations: ['rol'] });
-        const rolNombre = usuario?.rol?.nombre;
-        if (!usuario || !rolNombre) {
-          next(new Error('Usuario sin rol'));
+    server.use((socket, next) => {
+      // El decorador valida CORS para polling; en WebSocket puro hay que
+      // comprobar el Origin aquí. Se acepta localhost y la red privada.
+      validarOrigen(socket.handshake.headers.origin, (error, allow) => {
+        if (error || !allow) {
+          next(new Error('Origen no permitido'));
           return;
         }
-        socket.data.user = { id: payload.sub, email: payload.email, rol: rolNombre };
-        socket.join('rol:' + rolNombre);
-        socket.join('user:' + payload.sub);
-
-        const ttlMs = typeof payload.exp === 'number' ? payload.exp * 1000 - Date.now() : 0;
-        if (ttlMs > 0) {
-          const timer = setTimeout(() => socket.disconnect(true), ttlMs);
-          socket.once('disconnect', () => clearTimeout(timer));
-        } else {
-          socket.disconnect(true);
-        }
-        next();
-      } catch {
-        next(new Error('Token inválido o expirado'));
-      }
+        void this.autenticar(socket)
+          .then((continuar) => {
+            if (continuar) next();
+          })
+          .catch((authError: Error) => next(authError));
+      });
     });
+  }
+
+  private async autenticar(socket: Socket): Promise<boolean> {
+    // El token viaja en la cookie httpOnly (withCredentials en el cliente), nunca en JS.
+    const cookies = parse(socket.handshake.headers.cookie || '');
+    const token = cookies.token;
+
+    if (!token) {
+      throw new Error('Token no proporcionado');
+    }
+
+    try {
+      const payload = this.jwtService.verify<{ sub: number; email: string; exp: number }>(token);
+      const usuario = await this.usuarioRepo.findOne({ where: { id: payload.sub }, relations: ['rol'] });
+      const rolNombre = usuario?.rol?.nombre;
+      if (!usuario || !rolNombre) {
+        throw new Error('Usuario sin rol');
+      }
+
+      socket.data.user = { id: payload.sub, email: payload.email, rol: rolNombre };
+      socket.join('rol:' + rolNombre);
+      socket.join('user:' + payload.sub);
+
+      const ttlMs = typeof payload.exp === 'number' ? payload.exp * 1000 - Date.now() : 0;
+      if (ttlMs <= 0) {
+        socket.disconnect(true);
+        return false;
+      }
+
+      const timer = setTimeout(() => socket.disconnect(true), ttlMs);
+      socket.once('disconnect', () => clearTimeout(timer));
+      return true;
+    } catch {
+      throw new Error('Token inválido o expirado');
+    }
   }
 
   @OnEvent(RealtimeEvents.notificacionNueva)

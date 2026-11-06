@@ -1,28 +1,10 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseEnumPipe,
-  ParseIntPipe,
-  Post,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseEnumPipe, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { RolesGuard } from 'src/auth/strategy/roles.guard';
 import { Roles } from 'src/custom.decorator';
 import { Role } from 'src/common/enums/role.enum';
 import { TurnosService } from './turnos.service';
-import {
-  AbrirTurnoDto,
-  AgregarPersonalTurnoDto,
-  CerrarTurnoDto,
-  HistorialTurnoQueryDto,
-  MovimientoCajaDto,
-} from './dto/turno.dto';
+import { AbrirTurnoDto, AgregarPersonalTurnoDto, CerrarTurnoDto, HistorialTurnoQueryDto, MovimientoCajaDto } from './dto/turno.dto';
 import { RolTurno } from './entities/turno-usuario.entity';
 
 interface AuthedRequest extends Request {
@@ -105,11 +87,7 @@ export class TurnosController {
   }
 
   @Post(':id/movimientos')
-  async agregarMovimiento(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: MovimientoCajaDto,
-    @Req() req: AuthedRequest,
-  ) {
+  async agregarMovimiento(@Param('id', ParseIntPipe) id: number, @Body() dto: MovimientoCajaDto, @Req() req: AuthedRequest) {
     await this.service.verificarAccesoCaja(req.user?.id, req.user?.rol?.nombre);
     return this.service.agregarMovimiento(id, dto, req.user?.id ?? 0);
   }

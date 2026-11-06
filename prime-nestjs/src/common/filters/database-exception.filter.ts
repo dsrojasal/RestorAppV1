@@ -1,11 +1,4 @@
-import {
-  ArgumentsHost,
-  Catch,
-  ExceptionFilter,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { QueryFailedError } from 'typeorm';
 
@@ -51,16 +44,13 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
-      const payload =
-        typeof body === 'string' ? { statusCode: status, message: body } : body;
+      const payload = typeof body === 'string' ? { statusCode: status, message: body } : body;
       response.status(status).json(payload);
       return;
     }
 
     if (exception instanceof QueryFailedError) {
-      const driverError =
-        (exception as QueryFailedError & { driverError?: PostgresError }).driverError ??
-        (exception as unknown as PostgresError);
+      const driverError = (exception as QueryFailedError & { driverError?: PostgresError }).driverError ?? (exception as unknown as PostgresError);
       const mapped = this.mapDatabaseError(driverError, request.method);
 
       if (mapped) {
@@ -80,10 +70,7 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
 
     // Cualquier otro error inesperado: se registra completo en el servidor
     // y al usuario se le muestra un mensaje comprensible.
-    this.logger.error(
-      `[${request.method} ${request.url}] Error no controlado`,
-      exception instanceof Error ? exception.stack : String(exception),
-    );
+    this.logger.error(`[${request.method} ${request.url}] Error no controlado`, exception instanceof Error ? exception.stack : String(exception));
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       message: 'No se pudo completar la operación. Intenta de nuevo.',
@@ -91,15 +78,10 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
     });
   }
 
-  private mapDatabaseError(
-    error: PostgresError,
-    method: string,
-  ): MappedError | null {
+  private mapDatabaseError(error: PostgresError, method: string): MappedError | null {
     switch (error.code) {
       case '23505': {
-        const message =
-          UNIQUE_MESSAGES[error.table ?? ''] ??
-          'Ya existe un registro con esos datos. Revisa los campos e intenta de nuevo.';
+        const message = UNIQUE_MESSAGES[error.table ?? ''] ?? 'Ya existe un registro con esos datos. Revisa los campos e intenta de nuevo.';
         return { status: HttpStatus.CONFLICT, error: 'Conflict', message };
       }
       case '23503': {
@@ -128,6 +110,13 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
           status: HttpStatus.BAD_REQUEST,
           error: 'Bad Request',
           message: 'El monto o la cantidad ingresada es demasiado grande.',
+        };
+      }
+      case '22001': {
+        return {
+          status: HttpStatus.BAD_REQUEST,
+          error: 'Bad Request',
+          message: 'Uno de los textos es demasiado largo. Acórtalo e intenta de nuevo.',
         };
       }
       case '23514': {

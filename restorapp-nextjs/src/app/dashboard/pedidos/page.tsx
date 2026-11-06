@@ -231,7 +231,6 @@ export default function PedidosPage() {
     if (confirmTarget.type === 'create') {
       const result = await api('POST', '/api/backend/pedidos', {
         mesaId: confirmTarget.mesaId,
-        usuarioId: me!.id,
         lineas: confirmTarget.lineas,
       });
       ok = !!result;

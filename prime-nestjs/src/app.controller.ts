@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
-import { AppService } from './app.service';
+import { AppService, HealthStatus } from './app.service';
 import { JwtAuthGuard } from './auth/strategy/jwt-auth.guard';
 import { RolesGuard } from './auth/strategy/roles.guard';
 import { Public, Roles } from './custom.decorator';
@@ -17,7 +17,7 @@ export class AppController {
 
   @Public()
   @Get('/health-check')
-  healthCheck(): { message: string } {
+  healthCheck(): Promise<HealthStatus> {
     return this.appService.healthCheck();
   }
 

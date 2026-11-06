@@ -1,11 +1,22 @@
 {
   "name": "restorapp-nextjs",
   "version": "1.0.0",
+  "description": "Interfaz web de RestorApp, sistema integral de gestión para restaurantes.",
+  "author": {
+    "name": "Daniel Rojas",
+    "url": "https://github.com/dsrojasal"
+  },
   "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dsrojasal/RestorAppV1.git"
+  },
+  "homepage": "https://github.com/dsrojasal/RestorAppV1#readme",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3001",
     "lint": "next lint"
   },
   "dependencies": {

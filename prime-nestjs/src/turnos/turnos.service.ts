@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import Decimal from 'decimal.js';
@@ -15,37 +9,16 @@ import { Factura, EstadoPago } from 'src/facturas/entities/factura.entity';
 import { PagoFactura } from 'src/facturas/entities/pago-factura.entity';
 import { Pedido, PedidoEstado } from 'src/pedidos/entities/pedido.entity';
 import { Usuario } from 'src/usuarios/entities/usuario.entity';
-import {
-  Turno,
-  EstadoTurno,
-  ResumenPagoTurno,
-  ResumenMeseroTurno,
-} from './entities/turno.entity';
+import { Turno, EstadoTurno, ResumenPagoTurno, ResumenMeseroTurno } from './entities/turno.entity';
 import { TurnoUsuario, RolTurno } from './entities/turno-usuario.entity';
 import { MovimientoCaja, TipoMovimientoCaja } from './entities/movimiento-caja.entity';
-import {
-  AbrirTurnoDto,
-  AgregarPersonalTurnoDto,
-  CerrarTurnoDto,
-  HistorialTurnoQueryDto,
-  MovimientoCajaDto,
-} from './dto/turno.dto';
+import { AbrirTurnoDto, AgregarPersonalTurnoDto, CerrarTurnoDto, HistorialTurnoQueryDto, MovimientoCajaDto } from './dto/turno.dto';
 
 const LOCK_APERTURA = 918273645;
 
-const ESTADOS_PEDIDO_ABIERTO = [
-  PedidoEstado.PENDIENTE,
-  PedidoEstado.EN_PREPARACION,
-  PedidoEstado.LISTO,
-];
+const ESTADOS_PEDIDO_ABIERTO = [PedidoEstado.PENDIENTE, PedidoEstado.EN_PREPARACION, PedidoEstado.LISTO];
 
-const RELACIONES: string[] = [
-  'abiertoPor',
-  'cerradoPor',
-  'personal',
-  'personal.usuario',
-  'personal.usuario.rol',
-];
+const RELACIONES: string[] = ['abiertoPor', 'cerradoPor', 'personal', 'personal.usuario', 'personal.usuario.rol'];
 
 interface ResumenCalculado {
   totalVentas: number;
@@ -63,21 +36,19 @@ function dinero(valor: Decimal): number {
   return Number(valor.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(2));
 }
 
-function numero(valor: unknown): number {
-  return Number(valor ?? 0);
-}
-
 function esConflictoUnico(error: unknown): boolean {
   const e = error as { code?: string; driverError?: { code?: string } };
   return e?.code === '23505' || e?.driverError?.code === '23505';
 }
 
 function esEfectivo(nombre: string): boolean {
-  return nombre
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') === 'efectivo';
+  return (
+    nombre
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') === 'efectivo'
+  );
 }
 
 @Injectable()
@@ -233,16 +204,12 @@ export class TurnosService {
     const totalSalidas = resumen ? resumen.totalSalidas : dinero(aDecimal(turno.totalSalidas));
     const inicial = aDecimal(turno.montoInicial);
 
-    const esperado = turno.estado === EstadoTurno.ABIERTO
-      ? dinero(
-          inicial
-            .add(aDecimal(ventasEfectivo))
-            .add(aDecimal(totalEntradas))
-            .minus(aDecimal(totalSalidas)),
-        )
-      : turno.montoEsperado != null
-        ? dinero(aDecimal(turno.montoEsperado))
-        : null;
+    const esperado =
+      turno.estado === EstadoTurno.ABIERTO
+        ? dinero(inicial.add(aDecimal(ventasEfectivo)).add(aDecimal(totalEntradas)).minus(aDecimal(totalSalidas)))
+        : turno.montoEsperado != null
+          ? dinero(aDecimal(turno.montoEsperado))
+          : null;
 
     return {
       id: turno.id,
@@ -259,17 +226,13 @@ export class TurnosService {
       totalIva: resumen ? resumen.totalIva : dinero(aDecimal(turno.totalIva)),
       totalPropina: resumen ? resumen.totalPropina : dinero(aDecimal(turno.totalPropina)),
       cantidadFacturas: resumen ? resumen.cantidadFacturas : turno.cantidadFacturas,
-      resumenPagos: resumen ? resumen.resumenPagos : turno.resumenPagos ?? [],
-      resumenMeseros: resumen ? resumen.resumenMeseros : turno.resumenMeseros ?? [],
+      resumenPagos: resumen ? resumen.resumenPagos : (turno.resumenPagos ?? []),
+      resumenMeseros: resumen ? resumen.resumenMeseros : (turno.resumenMeseros ?? []),
       notas: turno.notas,
       fechaApertura: turno.fechaApertura,
       fechaCierre: turno.fechaCierre,
-      abiertoPor: turno.abiertoPor
-        ? { id: turno.abiertoPor.id, name: turno.abiertoPor.name }
-        : null,
-      cerradoPor: turno.cerradoPor
-        ? { id: turno.cerradoPor.id, name: turno.cerradoPor.name }
-        : null,
+      abiertoPor: turno.abiertoPor ? { id: turno.abiertoPor.id, name: turno.abiertoPor.name } : null,
+      cerradoPor: turno.cerradoPor ? { id: turno.cerradoPor.id, name: turno.cerradoPor.name } : null,
       personal,
       movimientos: movimientos ?? [],
     };
@@ -459,9 +422,7 @@ export class TurnosService {
       total: dinero(aDecimal(f.total)),
       fechaCobro: f.fechaCobro,
       cobradoPor: f.cobradoPor ? { id: f.cobradoPor.id, name: f.cobradoPor.name } : null,
-      autorizadoPor: f.autorizadoSinTurnoPor
-        ? { id: f.autorizadoSinTurnoPor.id, name: f.autorizadoSinTurnoPor.name }
-        : null,
+      autorizadoPor: f.autorizadoSinTurnoPor ? { id: f.autorizadoSinTurnoPor.id, name: f.autorizadoSinTurnoPor.name } : null,
       motivo: f.motivoSinTurno,
       tipoPago: f.tipoPago?.nombre ?? null,
       pagos: (f.pagos ?? []).map((p) => ({
@@ -483,20 +444,13 @@ export class TurnosService {
     });
   }
 
-  validarCobro(
-    turno: Turno | null,
-    esAdmin: boolean,
-    overrideSinCaja?: boolean,
-    motivoSinTurno?: string,
-  ): void {
+  validarCobro(turno: Turno | null, esAdmin: boolean, overrideSinCaja?: boolean, motivoSinTurno?: string): void {
     if (turno) return;
 
     if (esAdmin && overrideSinCaja) {
       const motivo = (motivoSinTurno ?? '').trim();
       if (motivo.length < 10) {
-        throw new BadRequestException(
-          'Para cobrar sin caja abierta debes registrar el motivo (mínimo 10 caracteres)',
-        );
+        throw new BadRequestException('Para cobrar sin caja abierta debes registrar el motivo (mínimo 10 caracteres)');
       }
       return;
     }
@@ -557,9 +511,7 @@ export class TurnosService {
         );
 
         const asignaciones = ids.flatMap((usuarioId) =>
-          [...(rolesPorUsuario.get(usuarioId) ?? [])].map((rolTurno) =>
-            manager.create(TurnoUsuario, { turnoId: turno.id, usuarioId, rolTurno }),
-          ),
+          [...(rolesPorUsuario.get(usuarioId) ?? [])].map((rolTurno) => manager.create(TurnoUsuario, { turnoId: turno.id, usuarioId, rolTurno })),
         );
 
         if (asignaciones.length > 0) {
@@ -590,18 +542,10 @@ export class TurnosService {
         throw new BadRequestException(`El usuario ${usuario.name} está inactivo y no puede asignarse al turno`);
       }
 
-      const filas = dto.roles.map((rolTurno) =>
-        manager.create(TurnoUsuario, { turnoId, usuarioId: dto.usuarioId, rolTurno }),
-      );
+      const filas = dto.roles.map((rolTurno) => manager.create(TurnoUsuario, { turnoId, usuarioId: dto.usuarioId, rolTurno }));
 
       if (filas.length > 0) {
-        await manager
-          .createQueryBuilder()
-          .insert()
-          .into(TurnoUsuario)
-          .values(filas)
-          .orIgnore()
-          .execute();
+        await manager.createQueryBuilder().insert().into(TurnoUsuario).values(filas).orIgnore().execute();
       }
     });
 
@@ -660,19 +604,14 @@ export class TurnosService {
           );
         }
         if (!aDecimal(original.monto).equals(aDecimal(dto.monto))) {
-          throw new BadRequestException(
-            `La reversión debe ser por el mismo monto del movimiento original (${dinero(aDecimal(original.monto))})`,
-          );
+          throw new BadRequestException(`La reversión debe ser por el mismo monto del movimiento original (${dinero(aDecimal(original.monto))})`);
         }
 
         // Evita revertir dos veces el mismo movimiento (solo cuentan reversiones válidas).
         const reversionesPrevias = await manager.find(MovimientoCaja, {
           where: { turnoId, reversoDeId: dto.reversoDeId },
         });
-        const yaRevertido = reversionesPrevias.some(
-          (r) =>
-            r.tipo !== original.tipo && aDecimal(r.monto).equals(aDecimal(original.monto)),
-        );
+        const yaRevertido = reversionesPrevias.some((r) => r.tipo !== original.tipo && aDecimal(r.monto).equals(aDecimal(original.monto)));
         if (yaRevertido) {
           throw new ConflictException('Este movimiento ya fue revertido');
         }
@@ -685,9 +624,10 @@ export class TurnosService {
           .minus(aDecimal(resumen.totalSalidas));
 
         if (aDecimal(dto.monto).greaterThan(disponible)) {
-          throw new BadRequestException(
-            `No hay suficiente efectivo en caja: disponible ${dinero(disponible)} y la salida es ${dinero(aDecimal(dto.monto))}. Registra primero una entrada de efectivo.`,
-          );
+          const mensaje =
+            `No hay suficiente efectivo en caja: disponible ${dinero(disponible)} ` +
+            `y la salida es ${dinero(aDecimal(dto.monto))}. Registra primero una entrada de efectivo.`;
+          throw new BadRequestException(mensaje);
         }
       }
 
@@ -716,9 +656,7 @@ export class TurnosService {
       motivo: conUsuario!.motivo,
       reversoDeId: conUsuario!.reversoDeId,
       fecha: conUsuario!.fecha,
-      usuario: conUsuario!.usuario
-        ? { id: conUsuario!.usuario.id, name: conUsuario!.usuario.name }
-        : null,
+      usuario: conUsuario!.usuario ? { id: conUsuario!.usuario.id, name: conUsuario!.usuario.name } : null,
     };
   }
 
@@ -747,9 +685,7 @@ export class TurnosService {
 
       const motivoDiferencia = (dto.motivoDiferencia ?? '').trim();
       if (!diferencia.isZero() && motivoDiferencia.length < 10) {
-        throw new BadRequestException(
-          'El arqueo no cuadra: debes registrar el motivo de la diferencia (mínimo 10 caracteres)',
-        );
+        throw new BadRequestException('El arqueo no cuadra: debes registrar el motivo de la diferencia (mínimo 10 caracteres)');
       }
 
       turno.estado = EstadoTurno.CERRADO;

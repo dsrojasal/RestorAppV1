@@ -1,0 +1,43 @@
+# Proxy inverso de ejemplo para RestorApp (red local).
+#
+# Copiar a /etc/caddy/Caddyfile (o ejecutar `caddy run --config Caddyfile`)
+# y abrir http://IP-DEL-SERVIDOR en el navegador.
+#
+# Qué hace:
+#   - El navegador habla con un solo origen (mismo host y puerto).
+#   - /api/backend/* va al backend (NestJS) en 127.0.0.1:3000.
+#   - /socket.io/* va al backend con soporte WebSocket.
+#   - Todo lo demás va al frontend (Next.js) en 127.0.0.1:3001.
+#
+# Con esto no hay CORS, la cookie de sesión y el socket comparten host, y la
+# IP de la máquina solo se usa para abrir la página: el .env no cambia.
+#
+# En el frontend:
+#   API_URL=http://127.0.0.1:3000
+#   NEXT_PUBLIC_API_URL=
+#   NEXT_PUBLIC_SOCKET_SAME_ORIGIN=true
+#   COOKIE_SECURE=false        # true cuando se sirva por HTTPS
+#
+# En el backend:
+#   ALLOWED_ORIGINS=http://localhost
+#   TRUST_PROXY=true
+#
+# Para usar HTTPS en la red local, reemplazar ":80" por el dominio o la IP y
+# ejecutar `caddy trust` una vez en cada equipo (o usar una CA propia).
+
+:80 {
+    encode gzip
+
+    handle /api/backend/* {
+        uri strip_prefix /api/backend
+        reverse_proxy 127.0.0.1:3000
+    }
+
+    handle /socket.io/* {
+        reverse_proxy 127.0.0.1:3000
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:3001
+    }
+}

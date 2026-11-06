@@ -13,6 +13,8 @@ import { CreateFacturaDto } from './dto/create-factura.dto';
 import { UpdateFacturaDto } from './dto/update-factura.dto';
 import { PagarFacturaDto } from './dto/pagar-factura.dto';
 import { calcularTotales, normalizarPagos } from './utils/cobro';
+import { Pagina, PaginacionQueryDto } from 'src/common/dto/paginacion-query.dto';
+import { construirPagina, normalizarPaginacion } from 'src/common/paginacion';
 
 const RELACIONES = [
   'pedido',
@@ -41,8 +43,18 @@ export class FacturasService {
     return this.repo.save(this.repo.create(dto));
   }
 
-  findAll(): Promise<Factura[]> {
-    return this.repo.find({ relations: RELACIONES, order: { id: 'DESC' } });
+  async findAll(query?: PaginacionQueryDto): Promise<Factura[] | Pagina<Factura>> {
+    const paginacion = normalizarPaginacion(query);
+    if (!paginacion.paginado) {
+      return this.repo.find({ relations: RELACIONES, order: { id: 'DESC' } });
+    }
+    const [data, total] = await this.repo.findAndCount({
+      relations: RELACIONES,
+      order: { id: 'DESC' },
+      skip: paginacion.skip,
+      take: paginacion.limit,
+    });
+    return construirPagina(data, total, paginacion.page, paginacion.limit);
   }
 
   findOne(id: number): Promise<Factura | null> {
@@ -56,14 +68,14 @@ export class FacturasService {
     return this.repo.save(entity);
   }
 
-  async pagar(
-    id: number,
-    dto: PagarFacturaDto,
-    cobradoPorId?: number,
-    cobradoPorRol?: string,
-  ): Promise<Factura> {
+  async pagar(id: number, dto: PagarFacturaDto, cobradoPorId?: number, cobradoPorRol?: string): Promise<Factura> {
     return this.dataSource.transaction(async (manager) => {
-      const factura = await manager.findOne(Factura, { where: { id } });
+      // Bloqueo pesimista: si dos cajas intentan cobrar la misma factura a la
+      // vez, la segunda espera y recibe "ya fue cobrada" en lugar de duplicar.
+      const factura = await manager.findOne(Factura, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!factura) throw new NotFoundException(`Factura #${id} no encontrada`);
       if (factura.estadoPago === EstadoPago.PAGADO) {
         throw new BadRequestException('Esta factura ya fue cobrada');
@@ -121,7 +133,7 @@ export class FacturasService {
       factura.fechaCobro = new Date();
       factura.turnoId = turnoId;
       factura.cobradoSinTurno = cobradoSinTurno;
-      factura.autorizadoSinTurnoPorId = cobradoSinTurno ? cobradoPorId ?? null : null;
+      factura.autorizadoSinTurnoPorId = cobradoSinTurno ? (cobradoPorId ?? null) : null;
       factura.motivoSinTurno = cobradoSinTurno ? (dto.motivoSinTurno ?? '').trim() : null;
 
       const guardada = await manager.save(Factura, factura);

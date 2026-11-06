@@ -1,4 +1,18 @@
 #!/bin/bash
+#
+# RestorApp API - instalación inicial
+#
+# Este script prepara el backend en un equipo nuevo:
+#   1. Comprueba Node, npm, Docker y Docker Compose.
+#   2. Crea .env a partir de .env.example solo si no existe.
+#   3. Instala dependencias.
+#   4. Levanta PostgreSQL.
+#   5. Aplica las migraciones versionadas.
+#
+# No usa `schema:sync`: el esquema se versiona únicamente con migraciones.
+# No sobrescribe .env ni borra archivos del repositorio.
+
+set -u
 
 # STDERR log function
 err() {
@@ -13,77 +27,61 @@ log() {
 
 # Check if Docker is installed
 if ! type "docker" >/dev/null 2>&1; then
-  err "⛔️ Docker not installed"
+  err "⛔️ Docker no está instalado"
 fi
 
 # Check if Docker Compose is installed
 if ! docker compose version >/dev/null 2>&1; then
-  err "⛔️ Docker Compose not installed"
+  err "⛔️ Docker Compose v2 no está instalado"
 fi
-log "🍀 Docker and Docker Compose are installed, everything looks good."
+log "🍀 Docker y Docker Compose están disponibles."
 
 # Check if NodeJS is installed
 if ! type "node" >/dev/null 2>&1; then
-  err "⛔️ NodeJS not installed"
+  err "⛔️ Node.js no está instalado"
 fi
 
 # Check if NPM is installed
 if ! type "npm" >/dev/null 2>&1; then
-  err "⛔️ NPM not installed"
+  err "⛔️ npm no está instalado"
 fi
 
-log "↪ Copying .env.example -> .env"
-cp .env.example .env
-if [ $? -ne 0 ]; then
-  err "⛔️ Error while copying .env"
+# .env: crear solo si no existe, para no sobrescribir configuración real.
+if [ -f .env ]; then
+  log "ℹ️  .env ya existe; se conserva sin cambios."
+else
+  log "↪ Copiando .env.example -> .env"
+  cp .env.example .env || err "⛔️ No se pudo crear .env"
+  chmod 600 .env
+  log "⚠️  Revisa .env y genera las claves RSA antes de arrancar."
 fi
 
-log "👐 Install dependencies"
-# First install husky separately
-npm install husky --save-dev
-if [ $? -ne 0 ]; then
-  err "⛔️ Husky installation failed"
+log "👐 Instalando dependencias"
+npm install --ignore-scripts || err "⛔️ Falló npm install"
+
+# Husky es opcional: si no hay repositorio git o falla, no bloquea el setup.
+if [ -d .git ]; then
+  npx husky install >/dev/null 2>&1 || log "⚠️  Husky no se inicializó; se continúa."
 fi
 
-# Then run the main npm install
-npm install --ignore-scripts
-if [ $? -ne 0 ]; then
-  err "⛔️ NPM install failed"
+log "🐳 Levantando PostgreSQL"
+docker compose up -d database || err "⛔️ No se pudo levantar la base de datos"
+
+log "⏳ Esperando a que PostgreSQL acepte conexiones..."
+DB_READY=0
+for _ in $(seq 1 30); do
+  if docker compose exec -T database pg_isready -U "${POSTGRES_USER:-postgres}" >/dev/null 2>&1; then
+    DB_READY=1
+    break
+  fi
+  sleep 2
+done
+if [ "$DB_READY" -ne 1 ]; then
+  err "⛔️ PostgreSQL no respondió a tiempo. Revisa: docker compose logs database"
 fi
 
-# Initialize husky (with warning if it fails)
-npx husky install
-if [ $? -ne 0 ]; then
-  log "⚠️ Husky initialization failed, but continuing..."
-fi
+log "🔄 Aplicando migraciones"
+npm run migration:run || err "⛔️ Fallaron las migraciones"
 
-log "👐 Starting Docker containers"
-docker compose up -d
-if [ $? -ne 0 ]; then
-  err "⛔️ Docker Compose failed to start containers"
-fi
-
-# Wait for database to be ready
-log "⏳ Waiting for database to be ready..."
-sleep 10
-
-log "🗃️ Running TypeORM schema sync"
-npx typeorm-ts-node-commonjs schema:sync -d ./src/config/database.ts
-if [ $? -ne 0 ]; then
-  err "⛔️ Schema sync failed"
-fi
-
-log "🔄 Running migrations"
-npx typeorm-ts-node-commonjs migration:run -d ./src/config/database.ts
-if [ $? -ne 0 ]; then
-  err "⛔️ Migrations failed"
-fi
-
-log "🐝 Clean repository"
-rm -rf ./README.md
-touch ./README.md
-if [ $? -ne 0 ]; then
-  err "⛔️ Cleaning failed."
-fi
-
-log "✅ Setup completed successfully!"
+log "✅ Instalación completada."
+log "   Siguiente paso: revisa .env, genera las claves RSA si hace falta y ejecuta 'npm run start:dev'."

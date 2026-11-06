@@ -28,7 +28,8 @@ export interface ResumenMeseroTurno {
  * único parcial lo garantiza también a nivel de base de datos.
  */
 @Entity()
-@Index('UQ_TURNO_ABIERTO', ['estado'], { unique: true, where: `"estado" = 'abierto'` })
+@Index('UQ_TURNO_ABIERTO', ['estado'], { unique: true, where: '"estado" = \'abierto\'' })
+@Index('IDX_TURNO_APERTURA', ['fechaApertura'])
 export class Turno {
   @PrimaryGeneratedColumn()
   id: number;

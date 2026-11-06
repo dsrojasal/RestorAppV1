@@ -12,6 +12,11 @@ const { Client } = require('pg');
 
 config({ path: path.join(__dirname, '..', '.env') });
 
+if (process.env.NODE_ENV === 'production' && !process.argv.includes('--forzar')) {
+  console.error('Este script crea cuentas con contraseñas conocidas. No se ejecuta en producción sin --forzar.');
+  process.exit(1);
+}
+
 const USUARIOS = [
   ['Admin Demo', 'admin.demo@restorapp.co', 'Admin1234!', 'Administrador'],
   ['Mesero Demo', 'mesero@restorapp.co', 'Mesero1234!', 'Mesero'],

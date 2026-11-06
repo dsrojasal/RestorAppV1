@@ -1,18 +1,19 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { CategoriasService } from './categorias.service';
-import { Categoria } from './entities/categoria.entity';
+import { CreateCategoriaDto } from './dto/create-categoria.dto';
+import { UpdateCategoriaDto } from './dto/update-categoria.dto';
 import { RolesGuard } from 'src/auth/strategy/roles.guard';
 import { Roles } from 'src/custom.decorator';
 import { Role } from 'src/common/enums/role.enum';
 
 @Controller('categorias')
+@UseGuards(RolesGuard)
 export class CategoriasController {
   constructor(private readonly service: CategoriasService) {}
 
   @Post()
-  @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
-  create(@Body() dto: Partial<Categoria>) {
+  create(@Body() dto: CreateCategoriaDto) {
     return this.service.create(dto);
   }
 
@@ -27,14 +28,12 @@ export class CategoriasController {
   }
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: Partial<Categoria>) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoriaDto) {
     return this.service.update(id, dto);
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id);
