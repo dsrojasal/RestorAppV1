@@ -247,7 +247,7 @@ prime-nestjs/
 
 ## Licencia
 
-**RestorApp API es software propietario.** © 2026 Daniel Rojas.
+**RestorApp API es software propietario.** © 2026 Daniel Rojas (@dsrojasal).
 
 Este backend se construyó a partir de **prime-nestjs** de Joseph Goksu,
 licencia **MIT**. Las porciones derivadas conservan esa licencia.
@@ -266,7 +266,7 @@ desarrollo original y **no** deriva de prime-nestjs.
 - **Base del backend:** [prime-nestjs](https://github.com/josephgoksu/prime-nestjs)
   de Joseph Goksu, MIT (2021).
 - **RestorApp:** módulos de negocio, reglas, migraciones, seguridad y
-  documentación por Daniel Rojas.
+  documentación por Daniel Rojas (@dsrojasal).
 
 ---
 

@@ -10,11 +10,11 @@ dónde está cada aviso.
 
 | Parte | Origen | Licencia |
 |---|---|---|
-| Frontend `restorapp-nextjs/` | Desarrollo original de Daniel Rojas | Propietaria |
-| Módulos de negocio del backend | Desarrollo original de Daniel Rojas | Propietaria |
+| Frontend `restorapp-nextjs/` | Desarrollo original de Daniel Rojas (@dsrojasal) | Propietaria |
+| Módulos de negocio del backend | Desarrollo original de Daniel Rojas (@dsrojasal) | Propietaria |
 | Base del backend `prime-nestjs/` | Derivada de `prime-nestjs` de Joseph Goksu | MIT |
 | Dependencias de npm | Cada paquete | La suya propia |
-| Logo, nombre e identidad de RestorApp | Daniel Rojas | Propietaria |
+| Logo, nombre e identidad de RestorApp | Daniel Rojas (@dsrojasal) | Propietaria |
 
 **Regla de oro:** la licencia MIT prevalece únicamente sobre las porciones
 derivadas de `prime-nestjs`. Todo lo demás es propietario.
@@ -132,10 +132,10 @@ comercialmente, conviene consultar el registro ante la autoridad competente.
 
 | Rol | Persona / proyecto |
 |---|---|
-| Autor de RestorApp | Daniel Rojas |
+| Autor de RestorApp | Daniel Rojas (@dsrojasal) |
 | Backend base | [prime-nestjs](https://github.com/josephgoksu/prime-nestjs) — Joseph Goksu, MIT (2021) |
-| Frontend | Desarrollo original de Daniel Rojas |
-| Documentación | Daniel Rojas, extraída del código real del repositorio |
+| Frontend | Desarrollo original de Daniel Rojas (@dsrojasal) |
+| Documentación | Daniel Rojas (@dsrojasal), extraída del código real del repositorio |
 
 RestorApp no está afiliado, patrocinado ni respaldado por Joseph Goksu ni por
 el proyecto `prime-nestjs`. La referencia es únicamente de atribución por el
@@ -146,6 +146,6 @@ código base utilizado.
 ## 8. Contacto
 
 Para permisos comerciales, distribución o consultas sobre la licencia,
-contacta al titular del proyecto: **Daniel Rojas**.
+contacta al titular del proyecto: **Daniel Rojas (@dsrojasal)**.
 
 - Repositorio: <https://github.com/dsrojasal/RestorAppV1>

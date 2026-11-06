@@ -264,7 +264,7 @@ Antes de publicar el sistema fuera de la red local, revisa
 
 ## Licencia
 
-**RestorApp es software propietario.** © 2026 Daniel Rojas. Todos los derechos
+**RestorApp es software propietario.** © 2026 Daniel Rojas (@dsrojasal). Todos los derechos
 reservados.
 
 El backend se construyó a partir de **prime-nestjs** de Joseph Goksu, que se
@@ -286,7 +286,7 @@ Para permisos comerciales o de distribución, contacta al titular.
 - **Backend base:** [prime-nestjs](https://github.com/josephgoksu/prime-nestjs)
   de Joseph Goksu, licencia MIT (2021).
 - **RestorApp:** diseño, desarrollo, reglas de negocio, frontend y documentación
-  por Daniel Rojas.
+  por Daniel Rojas (@dsrojasal).
 
 ---
 

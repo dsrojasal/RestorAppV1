@@ -1,13 +1,13 @@
 LICENCIA PROPIETARIA — RESTORAPP API
 ====================================
 
-Copyright (c) 2026 Daniel Rojas. Todos los derechos reservados.
+Copyright (c) 2026 Daniel Rojas (@dsrojasal). Todos los derechos reservados.
 All rights reserved.
 
 1. TITULARIDAD
 --------------
 El backend de RestorApp ubicado en este directorio (prime-nestjs/) es
-propiedad exclusiva de Daniel Rojas, con excepción de las porciones
+propiedad exclusiva de Daniel Rojas (@dsrojasal), con excepción de las porciones
 derivadas del proyecto prime-nestjs, que se rigen por la licencia MIT
 incluida en LICENSE-MIT.
 

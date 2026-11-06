@@ -20,7 +20,7 @@ derivadas de ese proyecto siguen sujetas a la licencia MIT. El texto completo
 está en [`LICENSE-MIT`](LICENSE-MIT).
 
 **El frontend `restorapp-nextjs/` no deriva de prime-nestjs.** Es desarrollo
-original de Daniel Rojas y se rige por la licencia propietaria del proyecto.
+original de Daniel Rojas (@dsrojasal) y se rige por la licencia propietaria del proyecto.
 
 ## Dependencias de npm
 
@@ -48,4 +48,4 @@ proyecto. No requiere el aviso MIT de prime-nestjs.
 ## Contacto
 
 Para permisos comerciales o consultas sobre la licencia propietaria, contacta
-al titular del proyecto: Daniel Rojas.
+al titular del proyecto: Daniel Rojas (@dsrojasal).

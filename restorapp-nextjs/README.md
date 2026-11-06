@@ -195,7 +195,7 @@ El estado de la última verificación está en
 
 ## Licencia
 
-**RestorApp Web es software propietario.** © 2026 Daniel Rojas. Todos los
+**RestorApp Web es software propietario.** © 2026 Daniel Rojas (@dsrojasal). Todos los
 derechos reservados.
 
 Este frontend es desarrollo original y **no** deriva de `prime-nestjs`. Las
