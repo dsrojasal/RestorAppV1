@@ -39,5 +39,5 @@ coverage/
 .vscode/
 .idea/
 .continue/
-tsconfig.eslint.json
+/tsconfig.eslint.json
 *.tsbuildinfo
